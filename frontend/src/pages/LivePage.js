@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
-import L from "leaflet";
+import { MapContainer, TileLayer, CircleMarker, Popup } from "react-leaflet";
 
 function LivePage() {
   const [vessels, setVessels] = useState([]);
@@ -11,20 +10,23 @@ function LivePage() {
       .then(data => setVessels(data.data || []));
   }, []);
 
+  const validVessels = vessels.filter(v => v.latitude && v.longitude);
+
+  const center = validVessels.length > 0
+    ? [validVessels[0].latitude, validVessels[0].longitude]
+    : [37.7749, -122.4194];
+
   return (
     <div>
       <h2>Live Tug Positions</h2>
-      <MapContainer center={[37.7749, -122.4194]} zoom={4} style={{ height: "90vh" }}>
-        <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        {vessels
-          .filter(v => v.latitude && v.longitude && !isNaN(v.latitude) && !isNaN(v.longitude))
-          .map((v, i) => (
-          <Marker
+      <MapContainer center={center} zoom={6} style={{ height: "90vh" }}>
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+        {validVessels.map((v, i) => (
+          <CircleMarker
             key={i}
-            position={[v.latitude, v.longitude]}
-            icon={L.icon({ iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png" })}
+            center={[v.latitude, v.longitude]}
+            radius={6}
+            pathOptions={{ color: "blue" }}
           >
             <Popup>
               <b>{v.name}</b><br />
@@ -32,7 +34,7 @@ function LivePage() {
               Speed: {v.speed} kn<br />
               Destination: {v.destination}
             </Popup>
-          </Marker>
+          </CircleMarker>
         ))}
       </MapContainer>
     </div>

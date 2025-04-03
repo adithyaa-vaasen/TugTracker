@@ -6,7 +6,7 @@ function LivePage() {
   const [vessels, setVessels] = useState([]);
 
   useEffect(() => {
-    fetch("http://172.16.84.181:8000/live")
+    fetch("http://127.0.0.1:8000/live")
       .then(res => res.json())
       .then(data => setVessels(data.data || []));
   }, []);

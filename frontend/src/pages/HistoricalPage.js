@@ -6,7 +6,7 @@ function HistoricalPage() {
 
   useEffect(() => {
     const mmsi = prompt("Enter MMSI to view history:");
-    fetch(`http://172.16.84.181:8000/historical?mmsi=${mmsi}`)
+    fetch(`http://127.0.0.1:8000/historical?mmsi=${mmsi}`)
       .then(res => res.json())
       .then(data => {
         const points = (data.data || []).map(d => [d.latitude, d.longitude]);

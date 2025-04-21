@@ -33,7 +33,7 @@ function MapPage() {
 
   const fetchLiveData = () => {
     if (mode === "live") {
-      fetch("https://implement-technician-licenses-harry.trycloudflare.com/live")
+      fetch("https://ontario-searches-ranch-local.trycloudflare.com/live")
 
         .then(res => res.json())
         .then(data => setVessels(data.data || []));
@@ -57,7 +57,7 @@ function MapPage() {
     if (mode === "historical" && selected) {
       const now = new Date().toISOString().slice(0, 19).replace("T", " ");
       const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-      fetch(`https://implement-technician-licenses-harry.trycloudflare.com/historical?mmsi=${selected}&start=${past}&end=${now}`)
+      fetch(`https://ontario-searches-ranch-local.trycloudflare.com/historical?mmsi=${selected}&start=${past}&end=${now}`)
         .then(res => res.json())
         .then(data => {
           const sorted = (data.data || []).filter(d => d.latitude && d.longitude);

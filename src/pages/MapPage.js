@@ -114,8 +114,8 @@ function MapPage() {
   const endIcon = L.divIcon({ className: "end-icon", html: "🔺", iconSize: [20, 20], iconAnchor: [10, 10] });
 
   const getColor = (speed) => {
-    if (speed < 6) return "green";
-    if (speed <= 8.5) return "yellow";
+    if (speed < 8.5) return "green";
+    if (speed <= 9) return "yellow";
     return "red";
   };
 

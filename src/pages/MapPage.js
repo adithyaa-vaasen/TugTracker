@@ -203,7 +203,9 @@ function MapPage() {
       </div>
 
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }}>
-        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+      <TileLayer
+        url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
+      />
 
         {mode === "live" && (searchMatch ? [searchMatch] : vessels).map((v, i) => (
           <Marker

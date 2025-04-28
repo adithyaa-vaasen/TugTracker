@@ -1,11 +1,9 @@
-
 import React, { useEffect, useState, useRef } from "react";
 import {
   MapContainer,
   TileLayer,
   Marker,
   Polyline,
-  useMap,
   Tooltip
 } from "react-leaflet";
 import L from "leaflet";
@@ -22,8 +20,17 @@ function MapPage() {
   const [visiblePath, setVisiblePath] = useState([]);
   const [sliderIndex, setSliderIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playSpeed, setPlaySpeed] = useState(100);
   const [selectedName, setSelectedName] = useState("");
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const mapRef = useRef();
+
+  const speedOptions = {
+    500: 1,
+    250: 1,
+    100: 1,
+    50: 1
+  };
 
   useEffect(() => {
     fetchLiveData();
@@ -34,7 +41,6 @@ function MapPage() {
   const fetchLiveData = () => {
     if (mode === "live") {
       fetch("https://tug.foss.com/live")
-
         .then(res => res.json())
         .then(data => setVessels(data.data || []));
     }
@@ -42,38 +48,19 @@ function MapPage() {
 
   useEffect(() => {
     if (isPlaying && mode === "historical") {
+      const currentStep = speedOptions[playSpeed] || 1;
       const timer = setInterval(() => {
         setSliderIndex(prev => {
-          if (prev < history.length - 1) return prev + 1;
-          setIsPlaying(false);
-          return prev;
+          const nextIndex = Math.min(prev + currentStep, history.length - 1);
+          if (nextIndex >= history.length - 1) {
+            setIsPlaying(false);
+          }
+          return nextIndex;
         });
-      }, 500);
+      }, playSpeed);
       return () => clearInterval(timer);
     }
-  }, [isPlaying, mode, history]);
-
-  useEffect(() => {
-    if (mode === "historical" && selected) {
-      const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-      const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-      fetch(`https://tug.foss.com/historical?mmsi=${selected}&start=${past}&end=${now}`)
-        .then(res => res.json())
-        .then(data => {
-          const sorted = (data.data || []).filter(d => d.latitude && d.longitude);
-          setHistory(sorted);
-          setVisiblePath(sorted);
-          setSliderIndex(sorted.length - 1);
-          if (sorted.length > 0) setSelectedName(sorted[0].name);
-          setTimeout(() => {
-            if (mapRef.current && sorted.length > 1) {
-              const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));
-              mapRef.current.fitBounds(bounds, { padding: [30, 30] });
-            }
-          }, 200);
-        });
-    }
-  }, [mode, selected]);
+  }, [isPlaying, mode, history, playSpeed]);
 
   useEffect(() => {
     if (history.length > 0) {
@@ -103,16 +90,6 @@ function MapPage() {
     }
   };
 
-  const shipIcon = L.divIcon({
-    className: "ship-icon",
-    html: `<div style="font-size: 20px;">🚢</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
-
-  const startIcon = L.divIcon({ className: "start-icon", html: "🟢", iconSize: [20, 20], iconAnchor: [10, 10] });
-  const endIcon = L.divIcon({ className: "end-icon", html: "🔺", iconSize: [20, 20], iconAnchor: [10, 10] });
-
   const getColor = (speed) => {
     if (speed < 8.5) return "green";
     if (speed <= 9) return "yellow";
@@ -131,12 +108,20 @@ function MapPage() {
     );
   });
 
-  const vesselsToShow = searchMatch ? [searchMatch] : vessels;
   const currentCenter = mode === "live"
-    ? (vesselsToShow[0] ? [vesselsToShow[0].latitude, vesselsToShow[0].longitude] : [36.5, -122])
+    ? (searchMatch ? [searchMatch.latitude, searchMatch.longitude] : (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122]))
     : (visiblePath[0] || [36.5, -122]);
 
   const currentTimestamp = visiblePath[visiblePath.length - 1]?.created_date;
+
+  const rotatedIcon = (angle) => L.divIcon({
+    className: "ship-icon",
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center;">➤</div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  const startIcon = L.divIcon({ className: "start-icon", html: "🟢", iconSize: [20, 20], iconAnchor: [10, 10] });
 
   return (
     <div>
@@ -145,6 +130,12 @@ function MapPage() {
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
         <span style={{ fontSize: "0.9em", color: "#555" }}>Click or Search a vessel to view last 3 days of history</span>
       </header>
+
+      {loadingHistory && (
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#fff", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.2)", zIndex: 1000 }}>
+          <h3>Loading Historical Data...</h3>
+        </div>
+      )}
 
       <div style={{ padding: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
         {mode === "historical" ? (
@@ -166,6 +157,15 @@ function MapPage() {
                 <button onClick={() => setIsPlaying(!isPlaying)}>
                   {isPlaying ? "⏸ Pause" : "▶️ Play"}
                 </button>
+                <label style={{ marginLeft: "10px" }}>
+                  Speed:
+                  <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))} style={{ marginLeft: "5px" }}>
+                    <option value={500}>Slow</option>
+                    <option value={250}>Normal</option>
+                    <option value={100}>Fast</option>
+                    <option value={50}>Very Fast</option>
+                  </select>
+                </label>
                 <input
                   type="range"
                   min="0"
@@ -198,15 +198,34 @@ function MapPage() {
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }}>
         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-        {mode === "live" && vesselsToShow.map((v, i) => (
+        {mode === "live" && (searchMatch ? [searchMatch] : vessels).map((v, i) => (
           <Marker
             key={i}
             position={[v.latitude, v.longitude]}
-            icon={shipIcon}
+            icon={rotatedIcon(v.heading || 0)}
             eventHandlers={{
               click: () => {
+                setLoadingHistory(true);
                 setSelected(v.mmsi);
-                setMode("historical");
+                const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+                const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+                fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${past}&end=${now}`)
+                  .then(res => res.json())
+                  .then(data => {
+                    const sorted = (data.data || []).filter(d => d.latitude && d.longitude);
+                    setHistory(sorted);
+                    setVisiblePath(sorted);
+                    setSliderIndex(0);
+                    if (sorted.length > 0) setSelectedName(sorted[0].name);
+                    setLoadingHistory(false);
+                    setMode("historical");
+                    setTimeout(() => {
+                      if (mapRef.current && sorted.length > 1) {
+                        const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));
+                        mapRef.current.fitBounds(bounds, { padding: [30, 30] });
+                      }
+                    }, 200);
+                  });
               }
             }}
           >
@@ -214,6 +233,8 @@ function MapPage() {
               <b>{v.name}</b><br />
               MMSI: {v.mmsi}<br />
               Speed: {v.speed} kn<br />
+              Heading: {v.heading}°<br />
+              Course: {v.course}°<br />
               Time: {v.created_date}
             </Tooltip>
           </Marker>
@@ -226,13 +247,6 @@ function MapPage() {
               <Marker position={[visiblePath[0].latitude, visiblePath[0].longitude]} icon={startIcon}>
                 <Tooltip direction="top" offset={[0, -10]}>
                   Start Time: {visiblePath[0].created_date}
-                </Tooltip>
-              </Marker>
-            )}
-            {visiblePath[visiblePath.length - 1] && (
-              <Marker position={[visiblePath[visiblePath.length - 1].latitude, visiblePath[visiblePath.length - 1].longitude]} icon={endIcon}>
-                <Tooltip direction="top" offset={[0, -10]}>
-                  End Time: {visiblePath[visiblePath.length - 1].created_date}
                 </Tooltip>
               </Marker>
             )}

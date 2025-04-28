@@ -116,7 +116,14 @@ function MapPage() {
 
   const rotatedIcon = (angle) => L.divIcon({
     className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center;">➤</div>`,
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+
+  const historicalEndIcon = (angle) => L.divIcon({
+    className: "ship-icon",
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
@@ -250,6 +257,19 @@ function MapPage() {
                 </Tooltip>
               </Marker>
             )}
+            {visiblePath[visiblePath.length - 1] && (() => {
+              const endPoint = visiblePath[visiblePath.length - 1];
+              return (
+                <Marker
+                  position={[endPoint.latitude, endPoint.longitude]}
+                  icon={historicalEndIcon(endPoint.heading || 0)}
+                >
+                  <Tooltip direction="top" offset={[0, -10]}>
+                    End Time: {endPoint.created_date}
+                  </Tooltip>
+                </Marker>
+              );
+            })()}
           </>
         )}
       </MapContainer>

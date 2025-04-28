@@ -203,8 +203,10 @@ function MapPage() {
       </div>
 
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }}>
-        <TileLayer url="https://tileservice.charts.noaa.gov/tiles/wmts/50000_1/{z}/{x}/{y}.png"
-  attribution="&copy; NOAA Nautical Charts" />
+        <TileLayer
+          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
+        />
 
         {mode === "live" && (searchMatch ? [searchMatch] : vessels).map((v, i) => (
           <Marker

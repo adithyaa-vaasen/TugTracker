@@ -269,38 +269,40 @@ function MapPage() {
             icon={rotatedIcon(v.heading || 0)}
             eventHandlers={{
               click: () => {
-                setHistoryRange(1);
+                const rangeDays = 1; // Always default to 1 day on click
                 setLoadingHistory(true);
                 setSelected(v.mmsi);
+
                 const now = new Date().toISOString().slice(0, 19).replace("T", " ");
                 const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+
                 fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${fullStart}&end=${now}`)
                   .then(res => res.json())
                   .then(data => {
                     let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
 
-                    // Optional: Downsample fullHistory for performance
-                    if (sorted.length > 5000) {
+                    if (sorted.length > 10000) {
                       const step = Math.ceil(sorted.length / 1000);
                       sorted = sorted.filter((_, i) => i % step === 0);
                     }
 
-                    setFullHistory(sorted);  // Save the full 30-day dataset
+                    setFullHistory(sorted);  // Store all 30 days
 
-                    // Slice based on selected range
-                    const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+                    // Slice only the last 1 day for initial display
+                    const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
                     const sliced = sorted.filter(p => new Date(p.created_date) >= cutoff);
 
                     setHistory(sliced);
                     setVisiblePath(sliced);
                     setSliderIndex(0);
-                    if (sorted.length > 0) setSelectedName(sorted[0].name);
+                    if (sliced.length > 0) setSelectedName(sliced[0].name);
+                    setHistoryRange(rangeDays);
                     setLoadingHistory(false);
                     setMode("historical");
 
                     setTimeout(() => {
-                      if (mapRef.current && sorted.length > 1) {
-                        const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));
+                      if (mapRef.current && sliced.length > 1) {
+                        const bounds = L.latLngBounds(sliced.map(p => [p.latitude, p.longitude]));
                         mapRef.current.fitBounds(bounds, { padding: [30, 30] });
                       }
                     }, 200);

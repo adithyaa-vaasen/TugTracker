@@ -275,8 +275,9 @@ function MapPage() {
                   .then(data => {
                     let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
 
-                    if (historyRange === 30) {
-                      sorted = sorted.filter((_, i) => i % 20 === 0); // Keep every 20th point
+                    if (historyRange === 30 && sorted.length > 1000) {
+                      const step = Math.ceil(sorted.length / 1000);
+                      sorted = sorted.filter((_, i) => i % step === 0);
                     }
 
                     setHistory(sorted);

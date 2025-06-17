@@ -24,7 +24,7 @@ function MapPage() {
   const [selectedName, setSelectedName] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(false);
   const mapRef = useRef();
-  onst [historyRange, setHistoryRange] = useState(1);
+  const [historyRange, setHistoryRange] = useState(1);
 
   const speedOptions = {
     500: 1,

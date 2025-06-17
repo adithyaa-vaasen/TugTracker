@@ -71,6 +71,7 @@ function MapPage() {
 
   useEffect(() => {
   if (mode === "historical" && selected) {
+    
     setLoadingHistory(true);
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
     const past = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
@@ -264,6 +265,7 @@ function MapPage() {
             icon={rotatedIcon(v.heading || 0)}
             eventHandlers={{
               click: () => {
+                setHistoryRange(1);
                 setLoadingHistory(true);
                 setSelected(v.mmsi);
                 const now = new Date().toISOString().slice(0, 19).replace("T", " ");
@@ -271,13 +273,19 @@ function MapPage() {
                 fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${past}&end=${now}`)
                   .then(res => res.json())
                   .then(data => {
-                    const sorted = (data.data || []).filter(d => d.latitude && d.longitude);
+                    let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
+
+                    if (historyRange === 30) {
+                      sorted = sorted.filter((_, i) => i % 10 === 0); // Keep every 10th point
+                    }
+
                     setHistory(sorted);
                     setVisiblePath(sorted);
                     setSliderIndex(0);
                     if (sorted.length > 0) setSelectedName(sorted[0].name);
                     setLoadingHistory(false);
                     setMode("historical");
+
                     setTimeout(() => {
                       if (mapRef.current && sorted.length > 1) {
                         const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));

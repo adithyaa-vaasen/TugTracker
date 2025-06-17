@@ -26,7 +26,8 @@ function MapPage() {
   const mapRef = useRef();
   const [historyRange, setHistoryRange] = useState(1);
   const [fullHistory, setFullHistory] = useState([]);
-
+  const [loading, setLoading] = useState(true);
+  
   const speedOptions = {
     500: 1,
     250: 1,
@@ -41,12 +42,14 @@ function MapPage() {
   }, []);
 
   const fetchLiveData = () => {
-    if (mode === "live") {
-      fetch("https://tug.foss.com/live")
-        .then(res => res.json())
-        .then(data => setVessels(data.data || []));
-    }
-  };
+  if (mode === "live") {
+    setLoading(true);
+    fetch("https://tug.foss.com/live")
+      .then(res => res.json())
+      .then(data => setVessels(data.data || []))
+      .finally(() => setLoading(false));
+  }
+};
 
   useEffect(() => {
     if (isPlaying && mode === "historical") {
@@ -153,6 +156,22 @@ function MapPage() {
       {loadingHistory && (
         <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#fff", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.2)", zIndex: 1000 }}>
           <h3>Loading Historical Data...</h3>
+        </div>
+      )}
+
+      {loading && (
+        <div style={{
+          position: "absolute",
+          top: "50%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          background: "#fff",
+          padding: "20px",
+          borderRadius: "8px",
+          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+          zIndex: 1000
+        }}>
+          <h3>Loading...</h3>
         </div>
       )}
 

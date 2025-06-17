@@ -170,82 +170,84 @@ function MapPage() {
         </div>
       )}
 
-      <div style={{ padding: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
-        {mode === "historical" ? (
-          <>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+      <div style={{ padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          {mode === "historical" ? (
+            <>
               <h3 style={{ margin: 0 }}>{selectedName} Historical Activity</h3>
-              <div style={{ display: "flex", gap: "10px" }}>
-                {[1, 7, 30].map(days => (
-                  <button
-                    key={days}
-                    style={{
-                      padding: "6px 12px",
-                      backgroundColor: historyRange === days ? "#007bff" : "#eee",
-                      color: historyRange === days ? "white" : "black",
-                      border: "1px solid #ccc",
-                      borderRadius: "4px",
-                      cursor: "pointer"
-                    }}
-                    onClick={() => setHistoryRange(days)}
-                  >
-                    {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+              <button onClick={() => {
+                setMode("live");
+                setSelected(null);
+                setSearchMatch(null);
+                setHistory([]);
+                setVisiblePath([]);
+                setSliderIndex(0);
+                setIsPlaying(false);
+              }}>
+                🔄 Back to Live
+              </button>
+              {history.length > 0 && (
+                <>
+                  <button onClick={() => setIsPlaying(!isPlaying)}>
+                    {isPlaying ? "⏸ Pause" : "▶️ Play"}
                   </button>
-                ))}
-              </div>
-            </div>
+                  <label style={{ marginLeft: "10px" }}>
+                    Speed:
+                    <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))} style={{ marginLeft: "5px" }}>
+                      <option value={500}>Slow</option>
+                      <option value={250}>Normal</option>
+                      <option value={100}>Fast</option>
+                      <option value={50}>Very Fast</option>
+                    </select>
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max={history.length - 1}
+                    value={sliderIndex}
+                    onChange={(e) => setSliderIndex(parseInt(e.target.value))}
+                    style={{ width: "300px" }}
+                  />
+                  <span style={{ fontWeight: "bold" }}>{currentTimestamp}</span>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <input
+                type="text"
+                placeholder="Enter MMSI or Name"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              />
+              <button onClick={handleSearch}>Search</button>
+              {searchMatch && (
+                <button onClick={() => setSearchMatch(null)}>🔁 Reset Search</button>
+              )}
+            </>
+          )}
+        </div>
 
-            <button onClick={() => {
-              setMode("live");
-              setSelected(null);
-              setSearchMatch(null);
-              setHistory([]);
-              setVisiblePath([]);
-              setSliderIndex(0);
-              setIsPlaying(false);
-            }}>
-              🔄 Back to Live
-            </button>
-            {history.length > 0 && (
-              <>
-                <button onClick={() => setIsPlaying(!isPlaying)}>
-                  {isPlaying ? "⏸ Pause" : "▶️ Play"}
-                </button>
-                <label style={{ marginLeft: "10px" }}>
-                  Speed:
-                  <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))} style={{ marginLeft: "5px" }}>
-                    <option value={500}>Slow</option>
-                    <option value={250}>Normal</option>
-                    <option value={100}>Fast</option>
-                    <option value={50}>Very Fast</option>
-                  </select>
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max={history.length - 1}
-                  value={sliderIndex}
-                  onChange={(e) => setSliderIndex(parseInt(e.target.value))}
-                  style={{ width: "300px" }}
-                />
-                <span style={{ fontWeight: "bold" }}>{currentTimestamp}</span>
-              </>
-            )}
-          </>
-        ) : (
-          <>
-            <input
-              type="text"
-              placeholder="Enter MMSI or Name"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            />
-            <button onClick={handleSearch}>Search</button>
-            {searchMatch && (
-              <button onClick={() => setSearchMatch(null)}>🔁 Reset Search</button>
-            )}
-          </>
+        {mode === "historical" && (
+          <div style={{ display: "flex", gap: "10px" }}>
+            {[1, 7, 30].map(days => (
+              <button
+                key={days}
+                style={{
+                  padding: "6px 12px",
+                  backgroundColor: historyRange === days ? "#007bff" : "#eee",
+                  color: historyRange === days ? "white" : "black",
+                  border: "1px solid #ccc",
+                  borderRadius: "4px",
+                  cursor: "pointer"
+                }}
+                onClick={() => setHistoryRange(days)}
+              >
+                {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+              </button>
+            ))}
+          </div>
         )}
       </div>
 

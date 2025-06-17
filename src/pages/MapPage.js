@@ -25,6 +25,7 @@ function MapPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const mapRef = useRef();
   const [historyRange, setHistoryRange] = useState(1);
+  const [fullHistory, setFullHistory] = useState([]);
 
   const speedOptions = {
     500: 1,
@@ -70,30 +71,14 @@ function MapPage() {
   }, [sliderIndex, history]);
 
   useEffect(() => {
-  if (mode === "historical" && selected) {
-    
-    setLoadingHistory(true);
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const past = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-
-    fetch(`https://tug.foss.com/historical?mmsi=${selected}&start=${past}&end=${now}`)
-      .then(res => res.json())
-      .then(data => {
-        const sorted = (data.data || []).filter(d => d.latitude && d.longitude);
-        setHistory(sorted);
-        setVisiblePath(sorted);
+    if (mode === "historical" && fullHistory.length > 0) {
+        const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+        const sliced = fullHistory.filter(p => new Date(p.created_date) >= cutoff);
+        setHistory(sliced);
+        setVisiblePath(sliced);
         setSliderIndex(0);
-        if (sorted.length > 0) setSelectedName(sorted[0].name);
-        setLoadingHistory(false);
-        setTimeout(() => {
-          if (mapRef.current && sorted.length > 1) {
-            const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));
-            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
-          }
-        }, 200);
-      });
-  }
-}, [historyRange]);
+      }
+  }, [historyRange]);
 
   const handleSearch = () => {
     const trimmed = search.trim();
@@ -269,19 +254,26 @@ function MapPage() {
                 setLoadingHistory(true);
                 setSelected(v.mmsi);
                 const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-                const past = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-                fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${past}&end=${now}`)
+                const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+                fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${fullStart}&end=${now}`)
                   .then(res => res.json())
                   .then(data => {
                     let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
 
-                    if (historyRange === 30 && sorted.length > 1000) {
+                    // Optional: Downsample fullHistory for performance
+                    if (sorted.length > 5000) {
                       const step = Math.ceil(sorted.length / 1000);
                       sorted = sorted.filter((_, i) => i % step === 0);
                     }
 
-                    setHistory(sorted);
-                    setVisiblePath(sorted);
+                    setFullHistory(sorted);  // Save the full 30-day dataset
+
+                    // Slice based on selected range
+                    const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+                    const sliced = sorted.filter(p => new Date(p.created_date) >= cutoff);
+
+                    setHistory(sliced);
+                    setVisiblePath(sliced);
                     setSliderIndex(0);
                     if (sorted.length > 0) setSelectedName(sorted[0].name);
                     setLoadingHistory(false);

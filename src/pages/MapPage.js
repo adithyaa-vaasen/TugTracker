@@ -68,7 +68,7 @@ function MapPage() {
       setVisiblePath(history.slice(0, sliderIndex + 1));
     }
   }, [sliderIndex, history]);
-  
+
   useEffect(() => {
   if (mode === "historical" && selected) {
     setLoadingHistory(true);
@@ -173,8 +173,8 @@ function MapPage() {
       <div style={{ padding: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
         {mode === "historical" ? (
           <>
-            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
-              <h3>{selectedName} Historical Activity</h3>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+              <h3 style={{ margin: 0 }}>{selectedName} Historical Activity</h3>
               <div style={{ display: "flex", gap: "10px" }}>
                 {[1, 7, 30].map(days => (
                   <button
@@ -194,6 +194,7 @@ function MapPage() {
                 ))}
               </div>
             </div>
+
             <button onClick={() => {
               setMode("live");
               setSelected(null);

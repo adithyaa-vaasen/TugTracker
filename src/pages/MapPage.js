@@ -24,6 +24,7 @@ function MapPage() {
   const [selectedName, setSelectedName] = useState("");
   const [loadingHistory, setLoadingHistory] = useState(false);
   const mapRef = useRef();
+  onst [historyRange, setHistoryRange] = useState(1);
 
   const speedOptions = {
     500: 1,
@@ -147,7 +148,21 @@ function MapPage() {
       <div style={{ padding: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
         {mode === "historical" ? (
           <>
-            <h3>{selectedName} Historical Activity</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+              <h3>{selectedName} Historical Activity</h3>
+              <label>
+                Range:
+                <select
+                  value={historyRange}
+                  onChange={(e) => setHistoryRange(parseInt(e.target.value))}
+                  style={{ marginLeft: "5px" }}
+                >
+                  <option value={1}>1 Day</option>
+                  <option value={7}>7 Days</option>
+                  <option value={30}>30 Days</option>
+                </select>
+              </label>
+            </div>
             <button onClick={() => {
               setMode("live");
               setSelected(null);
@@ -218,7 +233,7 @@ function MapPage() {
                 setLoadingHistory(true);
                 setSelected(v.mmsi);
                 const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-                const past = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+                const past = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
                 fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${past}&end=${now}`)
                   .then(res => res.json())
                   .then(data => {

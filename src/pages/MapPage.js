@@ -68,6 +68,31 @@ function MapPage() {
       setVisiblePath(history.slice(0, sliderIndex + 1));
     }
   }, [sliderIndex, history]);
+  
+  useEffect(() => {
+  if (mode === "historical" && selected) {
+    setLoadingHistory(true);
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const past = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+
+    fetch(`https://tug.foss.com/historical?mmsi=${selected}&start=${past}&end=${now}`)
+      .then(res => res.json())
+      .then(data => {
+        const sorted = (data.data || []).filter(d => d.latitude && d.longitude);
+        setHistory(sorted);
+        setVisiblePath(sorted);
+        setSliderIndex(0);
+        if (sorted.length > 0) setSelectedName(sorted[0].name);
+        setLoadingHistory(false);
+        setTimeout(() => {
+          if (mapRef.current && sorted.length > 1) {
+            const bounds = L.latLngBounds(sorted.map(p => [p.latitude, p.longitude]));
+            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
+          }
+        }, 200);
+      });
+  }
+}, [historyRange]);
 
   const handleSearch = () => {
     const trimmed = search.trim();
@@ -136,7 +161,7 @@ function MapPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ccc" }}>
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
-        <span style={{ fontSize: "0.9em", color: "#555" }}>Click or Search a vessel to view last 3 days of history</span>
+        <span style={{ fontSize: "0.9em", color: "#555" }}>Click or Search a vessel to view the historical data</span>
       </header>
 
       {loadingHistory && (
@@ -148,20 +173,26 @@ function MapPage() {
       <div style={{ padding: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
         {mode === "historical" ? (
           <>
-            <div style={{ display: "flex", alignItems: "center", gap: "15px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
               <h3>{selectedName} Historical Activity</h3>
-              <label>
-                Range:
-                <select
-                  value={historyRange}
-                  onChange={(e) => setHistoryRange(parseInt(e.target.value))}
-                  style={{ marginLeft: "5px" }}
-                >
-                  <option value={1}>1 Day</option>
-                  <option value={7}>7 Days</option>
-                  <option value={30}>30 Days</option>
-                </select>
-              </label>
+              <div style={{ display: "flex", gap: "10px" }}>
+                {[1, 7, 30].map(days => (
+                  <button
+                    key={days}
+                    style={{
+                      padding: "6px 12px",
+                      backgroundColor: historyRange === days ? "#007bff" : "#eee",
+                      color: historyRange === days ? "white" : "black",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      cursor: "pointer"
+                    }}
+                    onClick={() => setHistoryRange(days)}
+                  >
+                    {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+                  </button>
+                ))}
+              </div>
             </div>
             <button onClick={() => {
               setMode("live");

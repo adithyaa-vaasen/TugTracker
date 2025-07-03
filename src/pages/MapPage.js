@@ -29,8 +29,91 @@ function MapPage() {
   const [historyRange, setHistoryRange] = useState(1);
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [vesselFilter, setVesselFilter] = useState("both"); // "SM", "competitors", "both"
   const dropdownRef = useRef();
   const searchInputRef = useRef();
+  
+  // SM vessel MMSIs
+  const smTugsMMSI = [
+    368066590,  // BERING WIND --CITB
+    367576720,  // BRISTOL WIND --CITB Added on 04/24/25
+    368104850,  // KUPARUK WIND --CITB Added on 04/24/25
+    368247150,  // KAVIK WIND --CITB Added on 04/24/25
+    368104860,  // SAG WIND --CITB Added on 04/24/25
+    368026520,  // CAPT FRANK MOODY
+    367304650,  // GLACIER WIND --CITB
+    368210150,  // RESURRECTION --CITB
+    367186610,  // STELLAR WIND --CITB
+    367771910,  // DR HANK KAPLAN --CITB
+    368421370, // LIBERTY -- FPRRJ
+    366979360,  // ARTHUR FOSS --CSR
+    367039250,  // BETSY L --CSR
+    367384780,  // CAROLYN DOROTHY --CSR
+    367529030,  // CONNOR FOSS --CSR
+    367732430,  // DENISE FOSS --CSR
+    367608420,  // PETER J BRIX --CSR
+    367764250,  // PJ BRIX --CSR
+    367702780,  // SARAH --CSR
+    367101530,  // CARIBE ALLIANCE --ELS
+    367678850,  // LELA FRANCO --ELS
+    367408930,  // LUCY FOSS --ELS
+    367056982,  // HOKU LOA --FHI
+    367148660,  // MANUOKEKAI --FHI
+    366972620,  // MIKIOI --FHI
+    367776660,  // MOUNT BAKER --FHI
+    367389160,  // PI'ILANI --FHI
+    338627000,  // KAPENA BOB PURDY --FHI
+    338033000,  // KAPENA GEORGE PANUI --FHI
+    368477000,  // KAPENA RAYMOND ALAPAI --FHI
+    367151240,  // MAMO --FHI
+    368385860, // MOANA --FHI
+    366254000,  // KAPENA JACK YOUNG --FHI
+    368278450,  // EARL W REDD --FOW
+    368296000,  // HAWAII --FOW
+    367657270,  // MICHELE FOSS --FOW
+    367774490,  // NICOLE FOSS --FOW
+    368312940,  // REBEKAH --FOW
+    367581220,  // JAMIE RENEA --NorCal
+    367330510,  // PATRICIA ANN - AM --NorCal
+    367122220,  // REVOLUTION - AM --NorCal
+    367305920,  // SANDRA HUGH - AM --NorCal
+    367396790,  // Z FIVE - SL --NorCal
+    367396710,  // Z FOUR - SL --NorCal
+    367396670,  // Z THREE - AM --NorCal
+    367369720,  // ALTA JUNE --NorCal
+    368171990,  // LEISA FLORENCE --NorCal
+    368196320,  // RACHAEL ALLEN --NorCal
+    367004670,  // SAN JOAQUIN RIVER --NorCal
+    367416420,  // FREEDOM --Other
+    368351000,  // IVER FOSS --Other
+    366934290,  // SANDRA FOSS --Other
+    366932970,  // STACEY FOSS --Other
+    303466000,  // SARAH AVRICK - AM --Other
+    367642530,  // BO BRUSCO --PNW
+    //366982340,  // BRYNN FOSS --PNW
+    //366932980,  // DREW FOSS --PNW
+    366767140,  // GARTH FOSS --PNW
+    //366976870,  // HENRY FOSS --PNW
+    366767150,  // LINDSEY FOSS --PNW
+    366919770,  // LYNN MARIE --PNW
+    366982320,  // MARSHALL FOSS --PNW
+    366976920,  // WEDELL FOSS --PNW
+    368365290,  // DANIEL FOSS --PNW
+    368292850,  // JOHN QUIGG --PNW
+    303275000,  // JUSTINE FOSS --PRJ
+    368321010,  // LAUREN FOSS --PRJ
+    367569830,  // BARBARA JEAN MULHOLLAND --SoCal
+    367175860,  // INDEPENDENCE - AM --SoCal
+    367661930,  // MICHELLE SLOAN - AM --SoCal
+    366998840,  // MILLENNIUM MAVERICK --SoCal
+    366926740,  // TIM QUIGG --SoCal
+    367467120,  // AVA FOSS --SoCal
+    366979370,  // EDITH FOSS --SoCal
+    366892000,  // JAMIE ANN --SoCal
+    368010330,  // LILLIAN FOSS --SoCal
+    367017440,  // PIPER INNESS --SoCal
+    367566980,   // WYNEMA SPIRIT --CSR  Foss charter from Brusco
+  ];
   
   const speedOptions = {
     500: 1,
@@ -44,6 +127,15 @@ function MapPage() {
     const interval = setInterval(fetchLiveData, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-focus search input when dropdown opens
+  useEffect(() => {
+    if (dropdownOpen && searchInputRef.current) {
+      setTimeout(() => {
+        searchInputRef.current.focus();
+      }, 100);
+    }
+  }, [dropdownOpen]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -67,12 +159,19 @@ function MapPage() {
           const vesselsData = data.data || [];
           setAllVessels(vesselsData); // Store all vessels for dropdown
           
-          // If no vessels are selected, show all vessels
+          // Apply vessel filter first
+          let filteredByCategory = vesselsData;
+          if (vesselFilter === "sm") {
+            filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
+          } else if (vesselFilter === "competitors") {
+            filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
+          }
+          
+          // Then apply vessel selection
           if (selectedVessels.length === 0) {
-            setVessels(vesselsData);
+            setVessels(filteredByCategory);
           } else {
-            // Filter vessels based on selection
-            const filtered = vesselsData.filter(v => 
+            const filtered = filteredByCategory.filter(v => 
               selectedVessels.includes(v.mmsi)
             );
             setVessels(filtered);
@@ -114,19 +213,42 @@ function MapPage() {
     }
   }, [historyRange]);
 
+  // Helper function to check if vessel is SM
+  const isSMTug = (mmsi) => smTugsMMSI.includes(mmsi);
+
+  // Get vessel category
+  const getVesselCategory = (vessel) => {
+    return isSMTug(vessel.mmsi) ? "Saltchuk Marine" : "Competitor";
+  };
+
+  // Get vessel color
+  const getVesselColor = (vessel) => {
+    return isSMTug(vessel.mmsi) ? "#4CA61C" : "#161CB0"; // Green for SM, Blue for Competitors
+  };
+
   // Update displayed vessels when selection changes
   useEffect(() => {
     if (mode === "live" && allVessels.length > 0) {
+      let vesselsToShow = allVessels;
+      
+      // Filter by vessel category (SM/Competitors/Both)
+      if (vesselFilter === "sm") {
+        vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
+      } else if (vesselFilter === "competitors") {
+        vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
+      }
+      
+      // Then filter by selected vessels
       if (selectedVessels.length === 0) {
-        setVessels(allVessels); // Show all if none selected
+        setVessels(vesselsToShow); // Show all in category if none selected
       } else {
-        const filtered = allVessels.filter(v => 
+        const filtered = vesselsToShow.filter(v => 
           selectedVessels.includes(v.mmsi)
         );
         setVessels(filtered);
       }
     }
-  }, [selectedVessels, allVessels, mode]);
+  }, [selectedVessels, allVessels, mode, vesselFilter]);
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -164,8 +286,9 @@ function MapPage() {
       });
     }
     
-    // Sort the vessels alphabetically by name (A-Z)
+    // Sort the vessels - Change this section for different sorting
     return vessels.sort((a, b) => {
+      // Sort by name alphabetically (A-Z)
       const nameA = (a.name || "").toLowerCase();
       const nameB = (b.name || "").toLowerCase();
       return nameA.localeCompare(nameB);
@@ -196,16 +319,16 @@ function MapPage() {
 
   const currentTimestamp = visiblePath[visiblePath.length - 1]?.created_date;
 
-  const rotatedIcon = (angle) => L.divIcon({
+  const rotatedIcon = (angle, vessel) => L.divIcon({
     className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: ${getVesselColor(vessel)};">➤</div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
 
-  const historicalEndIcon = (angle) => L.divIcon({
+  const historicalEndIcon = (angle, vessel) => L.divIcon({
     className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: ${vessel ? getVesselColor(vessel) : '#5af3f4'};">➤</div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
@@ -324,6 +447,7 @@ function MapPage() {
                     {/* Search input */}
                     <div style={{ padding: "8px", borderBottom: "1px solid #eee", backgroundColor: "#f9f9f9" }}>
                       <input
+                        ref={searchInputRef}
                         type="text"
                         placeholder="Search vessels..."
                         value={dropdownSearch}
@@ -381,6 +505,13 @@ function MapPage() {
                             onChange={() => {}} // Handled by onClick
                             style={{ marginRight: "8px" }}
                           />
+                          <span style={{ 
+                            color: getVesselColor(vessel), 
+                            fontWeight: "bold", 
+                            marginRight: "8px" 
+                          }}>
+                            {getVesselCategory(vessel)}:
+                          </span>
                           {vessel.name || `MMSI: ${vessel.mmsi}`}
                         </div>
                       ))
@@ -407,6 +538,55 @@ function MapPage() {
                   🔁 Show All
                 </button>
               )}
+              
+              {/* Vessel Category Toggle */}
+              <div style={{ display: "flex", gap: "5px", marginLeft: "10px" }}>
+                <button
+                  onClick={() => setVesselFilter("sm")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: vesselFilter === "sm" ? "#4CA61C" : "#fff",
+                    color: vesselFilter === "sm" ? "white" : "#4CA61C",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  SM
+                </button>
+                <button
+                  onClick={() => setVesselFilter("competitors")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: vesselFilter === "competitors" ? "#161CB0" : "#fff",
+                    color: vesselFilter === "competitors" ? "white" : "#161CB0",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Competitors
+                </button>
+                <button
+                  onClick={() => setVesselFilter("both")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: vesselFilter === "both" ? "#666" : "#fff",
+                    color: vesselFilter === "both" ? "white" : "#666",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Both
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -443,7 +623,7 @@ function MapPage() {
           <Marker
             key={i}
             position={[v.latitude, v.longitude]}
-            icon={rotatedIcon(v.heading || 0)}
+            icon={rotatedIcon(v.heading || 0, v)}
             eventHandlers={{
               click: () => {
                 const rangeDays = 1; // Always default to 1 day on click
@@ -488,7 +668,7 @@ function MapPage() {
             }}
           >
             <Tooltip direction="top" offset={[0, -10]}>
-              <b>{v.name}</b><br />
+              <b style={{ color: getVesselColor(v) }}>{getVesselCategory(v)}: {v.name}</b><br />
               MMSI: {v.mmsi}<br />
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />
@@ -510,10 +690,12 @@ function MapPage() {
             )}
             {visiblePath[visiblePath.length - 1] && (() => {
               const endPoint = visiblePath[visiblePath.length - 1];
+              // Create a vessel object for the historical end icon
+              const endVessel = { mmsi: endPoint.mmsi || selected };
               return (
                 <Marker
                   position={[endPoint.latitude, endPoint.longitude]}
-                  icon={historicalEndIcon(endPoint.heading || 0)}
+                  icon={historicalEndIcon(endPoint.heading || 0, endVessel)}
                 >
                   <Tooltip direction="top" offset={[0, -10]}>
                     End Time: {endPoint.created_date}

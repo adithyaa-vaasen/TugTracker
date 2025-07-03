@@ -506,13 +506,7 @@ function MapPage() {
                             onChange={() => {}} // Handled by onClick
                             style={{ marginRight: "8px" }}
                           />
-                          <span style={{ 
-                            color: getVesselColor(vessel), 
-                            fontWeight: "bold", 
-                            marginRight: "8px" 
-                          }}>
-                            {getVesselCategory(vessel)}:
-                          </span>
+  
                           {vessel.name || `MMSI: ${vessel.mmsi}`}
                         </div>
                       ))

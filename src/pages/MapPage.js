@@ -1,3 +1,5 @@
+// Full updated React component with multi-select dropdown replacing search input
+
 import React, { useEffect, useState, useRef } from "react";
 import {
   MapContainer,
@@ -9,12 +11,12 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
+import Select from "react-select";
 
 function MapPage() {
   const [mode, setMode] = useState("live");
   const [vessels, setVessels] = useState([]);
-  const [search, setSearch] = useState("");
-  const [searchMatch, setSearchMatch] = useState(null);
+  const [selectedTugs, setSelectedTugs] = useState([]);
   const [selected, setSelected] = useState(null);
   const [history, setHistory] = useState([]);
   const [visiblePath, setVisiblePath] = useState([]);
@@ -27,13 +29,8 @@ function MapPage() {
   const [historyRange, setHistoryRange] = useState(1);
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  
-  const speedOptions = {
-    500: 1,
-    250: 1,
-    100: 1,
-    50: 1
-  };
+
+  const speedOptions = { 500: 1, 250: 1, 100: 1, 50: 1 };
 
   useEffect(() => {
     fetchLiveData();
@@ -42,14 +39,14 @@ function MapPage() {
   }, []);
 
   const fetchLiveData = () => {
-  if (mode === "live") {
-    setLoading(true);
-    fetch("https://tug.foss.com/live")
-      .then(res => res.json())
-      .then(data => setVessels(data.data || []))
-      .finally(() => setLoading(false));
-  }
-};
+    if (mode === "live") {
+      setLoading(true);
+      fetch("https://tug.foss.com/live")
+        .then(res => res.json())
+        .then(data => setVessels(data.data || []))
+        .finally(() => setLoading(false));
+    }
+  };
 
   useEffect(() => {
     if (isPlaying && mode === "historical") {
@@ -57,9 +54,7 @@ function MapPage() {
       const timer = setInterval(() => {
         setSliderIndex(prev => {
           const nextIndex = Math.min(prev + currentStep, history.length - 1);
-          if (nextIndex >= history.length - 1) {
-            setIsPlaying(false);
-          }
+          if (nextIndex >= history.length - 1) setIsPlaying(false);
           return nextIndex;
         });
       }, playSpeed);
@@ -75,37 +70,15 @@ function MapPage() {
 
   useEffect(() => {
     if (mode === "historical" && fullHistory.length > 0) {
-        const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
-        const sliced = fullHistory.filter(p => new Date(p.created_date) >= cutoff);
-        setHistory(sliced);
-        setVisiblePath(sliced);
-        setSliderIndex(0);
-      }
+      const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+      const sliced = fullHistory.filter(p => new Date(p.created_date) >= cutoff);
+      setHistory(sliced);
+      setVisiblePath(sliced);
+      setSliderIndex(0);
+    }
   }, [historyRange]);
 
-  const handleSearch = () => {
-    const trimmed = search.trim();
-    const isMMSI = /^\d+$/.test(trimmed);
-    const input = trimmed.toLowerCase();
-
-    const match = vessels.find(v => {
-      const vesselName = (v.name || "").trim().toLowerCase();
-      return isMMSI ? String(v.mmsi) === trimmed : vesselName === input;
-    });
-
-    if (match) {
-      setSearchMatch(match);
-      setTimeout(() => {
-        if (mapRef.current) {
-          mapRef.current.flyTo([match.latitude, match.longitude], 10);
-        }
-      }, 100);
-    } else {
-      alert("Vessel not found.");
-    }
-  };
-
-  const getColor = (speed) => {
+  const getColor = speed => {
     if (speed < 8.5) return "green";
     if (speed <= 9) return "yellow";
     return "red";
@@ -124,21 +97,16 @@ function MapPage() {
   });
 
   const currentCenter = mode === "live"
-    ? (searchMatch ? [searchMatch.latitude, searchMatch.longitude] : (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122]))
+    ? (selectedTugs.length > 0 && vessels.length > 0
+        ? [vessels[0].latitude, vessels[0].longitude]
+        : [36.5, -122])
     : (visiblePath[0] || [36.5, -122]);
 
   const currentTimestamp = visiblePath[visiblePath.length - 1]?.created_date;
 
-  const rotatedIcon = (angle) => L.divIcon({
+  const rotatedIcon = angle => L.divIcon({
     className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
-
-  const historicalEndIcon = (angle) => L.divIcon({
-    className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #5af3f4;">➤</div>`,
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); color: #5af3f4;">➤</div>`,
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
@@ -150,30 +118,11 @@ function MapPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ccc" }}>
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
-        <span style={{ fontSize: "0.9em", color: "#555" }}>Click or Search a vessel to view the historical data</span>
+        <span style={{ fontSize: "0.9em", color: "#555" }}>Click or select a vessel to view history</span>
       </header>
 
-      {loadingHistory && (
-        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#fff", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.2)", zIndex: 1000 }}>
-          <h3>Loading Historical Data...</h3>
-        </div>
-      )}
-
-      {loading && (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "#fff",
-          padding: "20px",
-          borderRadius: "8px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-          zIndex: 1000
-        }}>
-          <h3>Loading...</h3>
-        </div>
-      )}
+      {loadingHistory && <div className="loading-overlay"><h3>Loading Historical Data...</h3></div>}
+      {loading && <div className="loading-overlay"><h3>Loading...</h3></div>}
 
       <div style={{ padding: "10px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
@@ -183,54 +132,36 @@ function MapPage() {
               <button onClick={() => {
                 setMode("live");
                 setSelected(null);
-                setSearchMatch(null);
                 setHistory([]);
                 setVisiblePath([]);
                 setSliderIndex(0);
                 setIsPlaying(false);
-              }}>
-                🔄 Back to Live
-              </button>
+              }}>🔄 Back to Live</button>
               {history.length > 0 && (
                 <>
-                  <button onClick={() => setIsPlaying(!isPlaying)}>
-                    {isPlaying ? "⏸ Pause" : "▶️ Play"}
-                  </button>
-                  <label style={{ marginLeft: "10px" }}>
-                    Speed:
-                    <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))} style={{ marginLeft: "5px" }}>
+                  <button onClick={() => setIsPlaying(!isPlaying)}>{isPlaying ? "⏸ Pause" : "▶️ Play"}</button>
+                  <label style={{ marginLeft: "10px" }}>Speed:
+                    <select value={playSpeed} onChange={(e) => setPlaySpeed(Number(e.target.value))}>
                       <option value={500}>Slow</option>
                       <option value={250}>Normal</option>
                       <option value={100}>Fast</option>
                       <option value={50}>Very Fast</option>
                     </select>
                   </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max={history.length - 1}
-                    value={sliderIndex}
-                    onChange={(e) => setSliderIndex(parseInt(e.target.value))}
-                    style={{ width: "300px" }}
-                  />
-                  <span style={{ fontWeight: "bold" }}>{currentTimestamp}</span>
+                  <input type="range" min="0" max={history.length - 1} value={sliderIndex} onChange={(e) => setSliderIndex(parseInt(e.target.value))} />
+                  <span><b>{currentTimestamp}</b></span>
                 </>
               )}
             </>
           ) : (
-            <>
-              <input
-                type="text"
-                placeholder="Enter MMSI or Name"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-              />
-              <button onClick={handleSearch}>Search</button>
-              {searchMatch && (
-                <button onClick={() => setSearchMatch(null)}>🔁 Reset Search</button>
-              )}
-            </>
+            <Select
+              isMulti
+              placeholder="Select Tugs..."
+              options={vessels.map(v => ({ value: v.mmsi, label: v.name || v.mmsi }))}
+              value={selectedTugs}
+              onChange={(options) => setSelectedTugs(options || [])}
+              styles={{ container: base => ({ ...base, minWidth: "300px" }) }}
+            />
           )}
         </div>
 
@@ -239,37 +170,29 @@ function MapPage() {
             {[1, 7, 30].map(days => (
               <button
                 key={days}
-                style={{
-                  padding: "6px 12px",
-                  backgroundColor: historyRange === days ? "#007bff" : "#eee",
-                  color: historyRange === days ? "white" : "black",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-                onClick={() => setHistoryRange(days)}
-              >
-                {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+                style={{ padding: "6px 12px", backgroundColor: historyRange === days ? "#007bff" : "#eee", color: historyRange === days ? "white" : "black", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" }}
+                onClick={() => setHistoryRange(days)}>
+                {days === 1 ? "1 Day" : `${days} Days`}
               </button>
             ))}
           </div>
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={map => { mapRef.current = map.target }}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
 
-        {mode === "live" && (searchMatch ? [searchMatch] : vessels).map((v, i) => (
+        {mode === "live" && (selectedTugs.length > 0 ? vessels.filter(v => selectedTugs.some(s => s.value === v.mmsi)) : vessels).map((v, i) => (
           <Marker
             key={i}
             position={[v.latitude, v.longitude]}
             icon={rotatedIcon(v.heading || 0)}
             eventHandlers={{
               click: () => {
-                const rangeDays = 1; // Always default to 1 day on click
+                const rangeDays = 1;
                 setLoadingHistory(true);
                 setSelected(v.mmsi);
 
@@ -280,18 +203,11 @@ function MapPage() {
                   .then(res => res.json())
                   .then(data => {
                     let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
+                    if (sorted.length > 10000) sorted = sorted.filter((_, i) => i % Math.ceil(sorted.length / 1000) === 0);
 
-                    if (sorted.length > 10000) {
-                      const step = Math.ceil(sorted.length / 1000);
-                      sorted = sorted.filter((_, i) => i % step === 0);
-                    }
-
-                    setFullHistory(sorted);  // Store all 30 days
-
-                    // Slice only the last 1 day for initial display
+                    setFullHistory(sorted);
                     const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
                     const sliced = sorted.filter(p => new Date(p.created_date) >= cutoff);
-
                     setHistory(sliced);
                     setVisiblePath(sliced);
                     setSliderIndex(0);
@@ -311,12 +227,7 @@ function MapPage() {
             }}
           >
             <Tooltip direction="top" offset={[0, -10]}>
-              <b>{v.name}</b><br />
-              MMSI: {v.mmsi}<br />
-              Speed: {v.speed} kn<br />
-              Heading: {v.heading}°<br />
-              Course: {v.course}°<br />
-              Time: {v.created_date}
+              <b>{v.name}</b><br />MMSI: {v.mmsi}<br />Speed: {v.speed} kn<br />Heading: {v.heading}°<br />Course: {v.course}°<br />Time: {v.created_date}
             </Tooltip>
           </Marker>
         ))}
@@ -334,10 +245,7 @@ function MapPage() {
             {visiblePath[visiblePath.length - 1] && (() => {
               const endPoint = visiblePath[visiblePath.length - 1];
               return (
-                <Marker
-                  position={[endPoint.latitude, endPoint.longitude]}
-                  icon={historicalEndIcon(endPoint.heading || 0)}
-                >
+                <Marker position={[endPoint.latitude, endPoint.longitude]} icon={rotatedIcon(endPoint.heading || 0)}>
                   <Tooltip direction="top" offset={[0, -10]}>
                     End Time: {endPoint.created_date}
                   </Tooltip>

@@ -554,7 +554,7 @@ function MapPage() {
                     fontWeight: "bold"
                   }}
                 >
-                  SM
+                  Saltchuk Marine
                 </button>
                 <button
                   onClick={() => setVesselFilter("competitors")}
@@ -668,7 +668,7 @@ function MapPage() {
             }}
           >
             <Tooltip direction="top" offset={[0, -10]}>
-              <b style={{ color: getVesselColor(v) }}>{getVesselCategory(v)}: {v.name}</b><br />
+              <b style={{ color: getVesselColor(v) }}>{v.name}</b><br />
               MMSI: {v.mmsi}<br />
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />

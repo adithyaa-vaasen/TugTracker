@@ -151,15 +151,24 @@ function MapPage() {
 
   // Filter vessels based on search term
   const getFilteredVessels = () => {
+    let vessels;
+    
     if (!dropdownSearch.trim()) {
-      return allVessels;
+      vessels = allVessels;
+    } else {
+      const searchTerm = dropdownSearch.toLowerCase().trim();
+      vessels = allVessels.filter(vessel => {
+        const name = (vessel.name || "").toLowerCase();
+        const mmsi = String(vessel.mmsi);
+        return name.includes(searchTerm) || mmsi.includes(searchTerm);
+      });
     }
     
-    const searchTerm = dropdownSearch.toLowerCase().trim();
-    return allVessels.filter(vessel => {
-      const name = (vessel.name || "").toLowerCase();
-      const mmsi = String(vessel.mmsi);
-      return name.includes(searchTerm) || mmsi.includes(searchTerm);
+    // Sort the vessels alphabetically by name (A-Z)
+    return vessels.sort((a, b) => {
+      const nameA = (a.name || "").toLowerCase();
+      const nameB = (b.name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
     });
   };
 

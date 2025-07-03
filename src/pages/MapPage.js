@@ -16,6 +16,7 @@ function MapPage() {
   const [allVessels, setAllVessels] = useState([]); // Store all vessels for dropdown
   const [selectedVessels, setSelectedVessels] = useState([]); // Selected vessel MMSIs
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [dropdownSearch, setDropdownSearch] = useState("");
   const [selected, setSelected] = useState(null);
   const [history, setHistory] = useState([]);
   const [visiblePath, setVisiblePath] = useState([]);
@@ -29,6 +30,7 @@ function MapPage() {
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const dropdownRef = useRef();
+  const searchInputRef = useRef();
   
   const speedOptions = {
     500: 1,
@@ -48,6 +50,7 @@ function MapPage() {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
+        setDropdownSearch(""); // Clear search when closing
       }
     };
 
@@ -138,11 +141,26 @@ function MapPage() {
   };
 
   const handleSelectAll = () => {
-    if (selectedVessels.length === allVessels.length) {
+    const filteredVessels = getFilteredVessels();
+    if (selectedVessels.length === filteredVessels.length) {
       setSelectedVessels([]); // Deselect all
     } else {
-      setSelectedVessels(allVessels.map(v => v.mmsi)); // Select all
+      setSelectedVessels(filteredVessels.map(v => v.mmsi)); // Select all filtered
     }
+  };
+
+  // Filter vessels based on search term
+  const getFilteredVessels = () => {
+    if (!dropdownSearch.trim()) {
+      return allVessels;
+    }
+    
+    const searchTerm = dropdownSearch.toLowerCase().trim();
+    return allVessels.filter(vessel => {
+      const name = (vessel.name || "").toLowerCase();
+      const mmsi = String(vessel.mmsi);
+      return name.includes(searchTerm) || mmsi.includes(searchTerm);
+    });
   };
 
   const getColor = (speed) => {
@@ -291,9 +309,28 @@ function MapPage() {
                     borderRadius: "4px",
                     boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
                     zIndex: 1000,
-                    maxHeight: "300px",
+                    maxHeight: "350px",
                     overflowY: "auto"
                   }}>
+                    {/* Search input */}
+                    <div style={{ padding: "8px", borderBottom: "1px solid #eee", backgroundColor: "#f9f9f9" }}>
+                      <input
+                        type="text"
+                        placeholder="Search vessels..."
+                        value={dropdownSearch}
+                        onChange={(e) => setDropdownSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          border: "1px solid #ccc",
+                          borderRadius: "3px",
+                          fontSize: "14px",
+                          boxSizing: "border-box"
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
                     {/* Select All option */}
                     <div
                       onClick={handleSelectAll}
@@ -307,36 +344,42 @@ function MapPage() {
                     >
                       <input
                         type="checkbox"
-                        checked={selectedVessels.length === allVessels.length}
+                        checked={selectedVessels.length === getFilteredVessels().length && getFilteredVessels().length > 0}
                         onChange={() => {}} // Handled by onClick
                         style={{ marginRight: "8px" }}
                       />
-                      Select All ({allVessels.length} vessels)
+                      Select All ({getFilteredVessels().length} vessels)
                     </div>
                     
                     {/* Individual vessel options */}
-                    {allVessels.map(vessel => (
-                      <div
-                        key={vessel.mmsi}
-                        onClick={() => handleVesselSelect(vessel.mmsi)}
-                        style={{
-                          padding: "8px 16px",
-                          cursor: "pointer",
-                          borderBottom: "1px solid #eee",
-                          backgroundColor: selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"
-                        }}
-                        onMouseEnter={(e) => e.target.style.backgroundColor = "#f0f0f0"}
-                        onMouseLeave={(e) => e.target.style.backgroundColor = selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedVessels.includes(vessel.mmsi)}
-                          onChange={() => {}} // Handled by onClick
-                          style={{ marginRight: "8px" }}
-                        />
-                        {vessel.name || `MMSI: ${vessel.mmsi}`}
+                    {getFilteredVessels().length > 0 ? (
+                      getFilteredVessels().map(vessel => (
+                        <div
+                          key={vessel.mmsi}
+                          onClick={() => handleVesselSelect(vessel.mmsi)}
+                          style={{
+                            padding: "8px 16px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #eee",
+                            backgroundColor: selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"
+                          }}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = "#f0f0f0"}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedVessels.includes(vessel.mmsi)}
+                            onChange={() => {}} // Handled by onClick
+                            style={{ marginRight: "8px" }}
+                          />
+                          {vessel.name || `MMSI: ${vessel.mmsi}`}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: "8px 16px", color: "#666", fontStyle: "italic" }}>
+                        No vessels found matching "{dropdownSearch}"
                       </div>
-                    ))}
+                    )}
                   </div>
                 )}
               </div>

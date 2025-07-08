@@ -117,6 +117,46 @@ function MapPage() {
     367566980,   // WYNEMA SPIRIT --CSR  Foss charter from Brusco
   ];
   
+  // SM vessel groups for different colors
+  const smVesselGroups = {
+    // CITB vessels (CB group) - Light Blue
+    cb: [
+      368066590,  // BERING WIND --CITB
+      367576720,  // BRISTOL WIND --CITB
+      368104850,  // KUPARUK WIND --CITB
+      368247150,  // KAVIK WIND --CITB
+      368104860,  // SAG WIND --CITB
+      367304650,  // GLACIER WIND --CITB
+      368210150,  // RESURRECTION --CITB
+      367186610,  // STELLAR WIND --CITB
+      367771910,  // DR HANK KAPLAN --CITB
+      367434360,  // KALAMA --CITB
+    ],
+    
+    // AmNav vessels (AM group) - Red
+    am: [
+      367330510,  // PATRICIA ANN - AM
+      367122220,  // REVOLUTION - AM
+      367305920,  // SANDRA HUGH - AM
+      367396670,  // Z THREE - AM
+      367175860,  // INDEPENDENCE - AM
+      367661930,  // MICHELLE SLOAN - AM
+      303466000,  // SARAH AVRICK - AM
+    ],
+    
+    // All other SM vessels (Foss and others) - Green (default)
+    // These will get green color by default
+  };
+  
+  // Custom vessel colors - Add vessels here with their MMSI and desired color
+  const customVesselColors = {
+    // Example: MMSI: color
+    // 368066590: "#FF0000",  // BERING WIND - Red
+    // 367576720: "#FFA500",  // BRISTOL WIND - Orange
+    // 367304650: "#800080",  // GLACIER WIND - Purple
+    // Add more vessels here as needed
+  };
+  
   const speedOptions = {
     500: 1,
     250: 1,
@@ -225,6 +265,12 @@ function MapPage() {
 
   // Get vessel color
   const getVesselColor = (vessel) => {
+    // First check if vessel has a custom color
+    if (customVesselColors[vessel.mmsi]) {
+      return customVesselColors[vessel.mmsi];
+    }
+    
+    // Otherwise use default colors
     return isSMTug(vessel.mmsi) ? "#4CA61C" : "#161CB0"; // Green for SM, Blue for Competitors
   };
 
@@ -708,7 +754,8 @@ function MapPage() {
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />
               Course: {v.course}°<br />
-              Time: {v.created_date}
+              Time: {v.created_date}<br />
+              {customVesselColors[v.mmsi] && <span style={{ fontSize: "0.9em", fontStyle: "italic" }}>Custom Color</span>}
             </Tooltip>
           </Marker>
         ))}

@@ -201,6 +201,13 @@ function MapPage() {
           const vesselsData = data.data || [];
           setAllVessels(vesselsData); // Store all vessels for dropdown
           
+          // Debug: Log vessels by color group
+          console.log("=== Vessel Color Groups ===");
+          const cbVessels = vesselsData.filter(v => smVesselGroups.cb.includes(v.mmsi));
+          const amVessels = vesselsData.filter(v => smVesselGroups.am.includes(v.mmsi));
+          console.log("CB vessels (Light Blue):", cbVessels.map(v => v.name));
+          console.log("AM vessels (Red):", amVessels.map(v => v.name));
+          
           // Apply vessel filter first
           let filteredByCategory = vesselsData;
           if (vesselFilter === "sm") {
@@ -270,8 +277,20 @@ function MapPage() {
       return customVesselColors[vessel.mmsi];
     }
     
-    // Otherwise use default colors
-    return isSMTug(vessel.mmsi) ? "#4CA61C" : "#161CB0"; // Green for SM, Blue for Competitors
+    // Check if it's a Saltchuk Marine vessel
+    if (isSMTug(vessel.mmsi)) {
+      // Check which SM group it belongs to
+      if (smVesselGroups.cb.includes(vessel.mmsi)) {
+        return "#5DADE2"; // Light Blue for CB group
+      } else if (smVesselGroups.am.includes(vessel.mmsi)) {
+        return "#E74C3C"; // Red for AM group
+      } else {
+        return "#4CA61C"; // Green for Foss and other SM vessels
+      }
+    }
+    
+    // Blue for Competitors
+    return "#161CB0";
   };
 
   // Update displayed vessels when selection changes
@@ -667,6 +686,30 @@ function MapPage() {
                   Both
                 </button>
               </div>
+              
+              {/* Color Legend */}
+              <div style={{ 
+                display: "flex", 
+                gap: "15px", 
+                marginLeft: "20px", 
+                padding: "5px 10px", 
+                backgroundColor: "#f5f5f5", 
+                borderRadius: "4px",
+                fontSize: "13px"
+              }}>
+                <span>
+                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CB</span>
+                </span>
+                <span>
+                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AM</span>
+                </span>
+                <span>
+                  <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>
+                </span>
+                <span>
+                  <span style={{ color: "#161CB0", fontWeight: "bold" }}>● Competitors</span>
+                </span>
+              </div>
             </>
           )}
         </div>
@@ -754,8 +797,7 @@ function MapPage() {
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />
               Course: {v.course}°<br />
-              Time: {v.created_date}<br />
-              {customVesselColors[v.mmsi] && <span style={{ fontSize: "0.9em", fontStyle: "italic" }}>Custom Color</span>}
+              Time: {v.created_date}
             </Tooltip>
           </Marker>
         ))}

@@ -247,6 +247,14 @@ function MapPage() {
           selectedVessels.includes(v.mmsi)
         );
         setVessels(filtered);
+        
+        // Auto-adjust map view to fit selected vessels
+        if (filtered.length > 0 && mapRef.current) {
+          setTimeout(() => {
+            const bounds = L.latLngBounds(filtered.map(v => [v.latitude, v.longitude]));
+            mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+          }, 100);
+        }
       }
     }
   }, [selectedVessels, allVessels, mode, vesselFilter]);
@@ -272,15 +280,21 @@ function MapPage() {
     }
   };
 
-  // Filter vessels based on search term
+  // Filter vessels based on search term AND vessel filter
   const getFilteredVessels = () => {
-    let vessels;
+    let vessels = allVessels;
     
-    if (!dropdownSearch.trim()) {
-      vessels = allVessels;
-    } else {
+    // First apply the vessel category filter
+    if (vesselFilter === "sm") {
+      vessels = vessels.filter(v => isSMTug(v.mmsi));
+    } else if (vesselFilter === "competitors") {
+      vessels = vessels.filter(v => !isSMTug(v.mmsi));
+    }
+    
+    // Then apply search filter
+    if (dropdownSearch.trim()) {
       const searchTerm = dropdownSearch.toLowerCase().trim();
-      vessels = allVessels.filter(vessel => {
+      vessels = vessels.filter(vessel => {
         const name = (vessel.name || "").toLowerCase();
         const mmsi = String(vessel.mmsi);
         return name.includes(searchTerm) || mmsi.includes(searchTerm);
@@ -338,6 +352,22 @@ function MapPage() {
 
   return (
     <div>
+      <style>
+        {`
+          /* Move zoom controls to the right */
+          .leaflet-control-zoom {
+            right: 10px !important;
+            left: auto !important;
+          }
+          
+          /* Move attribution to the left */
+          .leaflet-control-attribution {
+            right: auto !important;
+            left: 0 !important;
+          }
+        `}
+      </style>
+      
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ccc" }}>
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>

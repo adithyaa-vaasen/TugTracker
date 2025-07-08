@@ -119,8 +119,8 @@ function MapPage() {
   
   // SM vessel groups for different colors
   const smVesselGroups = {
-    // CITB vessels (CB group) - Light Blue
-    cb: [
+    // CITB vessels (CITBB group) - Light Blue
+    citb: [
       368066590,  // BERING WIND --CITB
       367576720,  // BRISTOL WIND --CITB
       368104850,  // KUPARUK WIND --CITB
@@ -134,7 +134,7 @@ function MapPage() {
     ],
     
     // AmNav vessels (AM group) - Red
-    am: [
+    amnav: [
       367330510,  // PATRICIA ANN - AM
       367122220,  // REVOLUTION - AM
       367305920,  // SANDRA HUGH - AM
@@ -203,10 +203,10 @@ function MapPage() {
           
           // Debug: Log vessels by color group
           console.log("=== Vessel Color Groups ===");
-          const cbVessels = vesselsData.filter(v => smVesselGroups.cb.includes(v.mmsi));
-          const amVessels = vesselsData.filter(v => smVesselGroups.am.includes(v.mmsi));
-          console.log("CB vessels (Light Blue):", cbVessels.map(v => v.name));
-          console.log("AM vessels (Red):", amVessels.map(v => v.name));
+          const citbVessels = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
+          const amnavVessels = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
+          console.log("citb vessels (Light Blue):", citbVessels.map(v => v.name));
+          console.log("amnav vessels (Red):", amnavVessels.map(v => v.name));
           
           // Apply vessel filter first
           let filteredByCategory = vesselsData;
@@ -280,9 +280,9 @@ function MapPage() {
     // Check if it's a Saltchuk Marine vessel
     if (isSMTug(vessel.mmsi)) {
       // Check which SM group it belongs to
-      if (smVesselGroups.cb.includes(vessel.mmsi)) {
-        return "#5DADE2"; // Light Blue for CB group
-      } else if (smVesselGroups.am.includes(vessel.mmsi)) {
+      if (smVesselGroups.citb.includes(vessel.mmsi)) {
+        return "#5DADE2"; // Light Blue for citb group
+      } else if (smVesselGroups.amnav.includes(vessel.mmsi)) {
         return "#E74C3C"; // Red for AM group
       } else {
         return "#4CA61C"; // Green for Foss and other SM vessels
@@ -698,10 +698,10 @@ function MapPage() {
                 fontSize: "13px"
               }}>
                 <span>
-                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CB</span>
+                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
                 </span>
                 <span>
-                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AM</span>
+                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
                 </span>
                 <span>
                   <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>

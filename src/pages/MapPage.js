@@ -297,8 +297,8 @@ function MapPage() {
   };
 
   const getColor = (speed) => {
-    if (speed < 8.5) return "green";
-    if (speed <= 9) return "yellow";
+    if (speed <= 8.5) return "green";
+    if (speed <= 9.5) return "yellow";
     return "red";
   };
 

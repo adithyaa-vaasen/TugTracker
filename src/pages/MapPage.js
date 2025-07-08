@@ -139,9 +139,12 @@ function MapPage() {
       367122220,  // REVOLUTION - AM
       367305920,  // SANDRA HUGH - AM
       367396670,  // Z THREE - AM
+      367396790,  // Z FIVE - SL --NorCal
+      367396710,  // Z FOUR - SL --NorCal
       367175860,  // INDEPENDENCE - AM
       367661930,  // MICHELLE SLOAN - AM
       303466000,  // SARAH AVRICK - AM
+      366926740,  // TIM QUIGG --SoCal
     ],
     
     // All other SM vessels (Foss and others) - Green (default)

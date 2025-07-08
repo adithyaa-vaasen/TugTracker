@@ -4,7 +4,8 @@ import {
   TileLayer,
   Marker,
   Polyline,
-  Tooltip
+  Tooltip,
+  ZoomControl
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -355,13 +356,21 @@ function MapPage() {
       <style>
         {`
           /* Move zoom controls to the right */
-          .leaflet-control-zoom {
-            right: 10px !important;
+          .leaflet-container .leaflet-control-zoom {
+            margin-right: 10px !important;
+            margin-left: 0 !important;
+            right: 0 !important;
             left: auto !important;
           }
           
-          /* Move attribution to the left */
-          .leaflet-control-attribution {
+          /* Also target the leaflet top left container */
+          .leaflet-container .leaflet-top.leaflet-left {
+            right: 0 !important;
+            left: auto !important;
+          }
+          
+          /* Move attribution to the left if needed */
+          .leaflet-container .leaflet-control-attribution {
             right: auto !important;
             left: 0 !important;
           }
@@ -638,7 +647,8 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
+        <ZoomControl position="topright" />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"

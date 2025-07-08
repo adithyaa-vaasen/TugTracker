@@ -145,6 +145,7 @@ function MapPage() {
       367661930,  // MICHELLE SLOAN - AM
       303466000,  // SARAH AVRICK - AM
       366926740,  // TIM QUIGG --SoCal
+      367581220,  // JAMIE RENEA --NorCal
     ],
     
     // All other SM vessels (Foss and others) - Green (default)

@@ -130,7 +130,6 @@ function MapPage() {
       368210150,  // RESURRECTION --CITB
       367186610,  // STELLAR WIND --CITB
       367771910,  // DR HANK KAPLAN --CITB
-      367434360,  // KALAMA --CITB
     ],
     
     // AmNav vessels (AM group) - Red

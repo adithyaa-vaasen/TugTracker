@@ -701,10 +701,10 @@ function MapPage() {
                 fontSize: "13px"
               }}>
                 <span>
-                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
+                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
                 </span>
                 <span>
-                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
+                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
                 </span>
                 <span>
                   <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>

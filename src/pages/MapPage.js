@@ -130,6 +130,7 @@ function MapPage() {
       368210150,  // RESURRECTION --CITB
       367186610,  // STELLAR WIND --CITB
       367771910,  // DR HANK KAPLAN --CITB
+      368026520,  // CAPT FRANK MOODY
     ],
     
     // AmNav vessels (AM group) - Red
@@ -145,6 +146,7 @@ function MapPage() {
       303466000,  // SARAH AVRICK - AM
       366926740,  // TIM QUIGG --SoCal
       367581220,  // JAMIE RENEA --NorCal
+      366998840,  // MILLENNIUM MAVERICK --SoCal
     ],
     
     // All other SM vessels (Foss and others) - Green (default)

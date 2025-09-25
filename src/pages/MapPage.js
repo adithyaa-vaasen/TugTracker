@@ -92,7 +92,7 @@ function MapPage() {
     366932970,  // STACEY FOSS --Other
     303466000,  // SARAH AVRICK - AM --Other
     367642530,  // BO BRUSCO --PNW
-    //366982340,  // BRYNN FOSS --PNW
+    366982340,  // BRYNN FOSS --PNW
     //366932980,  // DREW FOSS --PNW
     366767140,  // GARTH FOSS --PNW
     //366976870,  // HENRY FOSS --PNW

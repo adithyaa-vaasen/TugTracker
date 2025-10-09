@@ -171,7 +171,7 @@ function MapPage() {
 
   useEffect(() => {
     fetchLiveData();
-    const interval = setInterval(fetchLiveData, 1 * 60 * 1000);
+    const interval = setInterval(fetchLiveData, 4 * 60 * 1000);
     return () => clearInterval(interval);
   }, []);
 

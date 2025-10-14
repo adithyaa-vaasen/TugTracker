@@ -208,7 +208,9 @@ function MapPage() {
           
           let filteredByCategory = vesselsData;
           
-          if (groupFilter === "amnav") {
+          if (groupFilter === "saltchuk") {
+            filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
+          } else if (groupFilter === "amnav") {
             filteredByCategory = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
           } else if (groupFilter === "citb") {
             filteredByCategory = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
@@ -294,7 +296,9 @@ function MapPage() {
     if (mode === "live" && allVessels.length > 0) {
       let vesselsToShow = allVessels;
       
-      if (groupFilter === "amnav") {
+      if (groupFilter === "saltchuk") {
+        vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
+      } else if (groupFilter === "amnav") {
         vesselsToShow = vesselsToShow.filter(v => smVesselGroups.amnav.includes(v.mmsi));
       } else if (groupFilter === "citb") {
         vesselsToShow = vesselsToShow.filter(v => smVesselGroups.citb.includes(v.mmsi));
@@ -348,7 +352,9 @@ function MapPage() {
   const getFilteredVessels = () => {
     let vessels = allVessels;
     
-    if (groupFilter === "amnav") {
+    if (groupFilter === "saltchuk") {
+      vessels = vessels.filter(v => isSMTug(v.mmsi));
+    } else if (groupFilter === "amnav") {
       vessels = vessels.filter(v => smVesselGroups.amnav.includes(v.mmsi));
     } else if (groupFilter === "citb") {
       vessels = vessels.filter(v => smVesselGroups.citb.includes(v.mmsi));
@@ -713,6 +719,21 @@ function MapPage() {
                 fontSize: "13px"
               }}>
                 <button
+                  onClick={() => setGroupFilter(groupFilter === "saltchuk" ? "all" : "saltchuk")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: groupFilter === "saltchuk" ? "#666" : "#fff",
+                    color: groupFilter === "saltchuk" ? "white" : "#666",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  Saltchuk Marine
+                </button>
+                <button
                   onClick={() => setGroupFilter(groupFilter === "amnav" ? "all" : "amnav")}
                   style={{
                     padding: "4px 10px",
@@ -792,7 +813,7 @@ function MapPage() {
                 }}
                 onClick={() => setHistoryRange(days)}
               >
-                {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+                {days === 1 ? "1 Day" : days=== 7 ? "7 Days" : "30 Days"}
               </button>
             ))}
           </div>
@@ -814,7 +835,8 @@ function MapPage() {
             backgroundColor: "rgba(255, 255, 255, 0.95)",
             padding: "12px 16px",
             borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",zIndex: 1000,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            zIndex: 1000,
             border: "1px solid #ccc"
           }}>
             <div style={{ fontWeight: "bold", marginBottom: "8px", fontSize: "14px" }}>Speed Legend</div>

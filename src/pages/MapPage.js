@@ -19,6 +19,7 @@ function MapPage() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const [selected, setSelected] = useState(null);
+  const [historicalData, setHistoricalData] = useState({});
   const [history, setHistory] = useState([]);
   const [visiblePath, setVisiblePath] = useState([]);
   const [sliderIndex, setSliderIndex] = useState(0);

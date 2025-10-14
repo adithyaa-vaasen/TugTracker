@@ -724,8 +724,8 @@ function MapPage() {
                     padding: "4px 10px",
                     border: "1px solid #ccc",
                     borderRadius: "4px",
-                    backgroundColor: groupFilter === "saltchuk" ? "#666" : "#fff",
-                    color: groupFilter === "saltchuk" ? "white" : "#666",
+                    backgroundColor: groupFilter === "saltchuk" ? "#12506b" : "#fff",
+                    color: groupFilter === "saltchuk" ? "white" : "#12506b",
                     cursor: "pointer",
                     fontWeight: "bold",
                     fontSize: "12px"
@@ -791,7 +791,7 @@ function MapPage() {
                     fontSize: "12px"
                   }}
                 >
-                  ● Competitors
+                  Competitors
                 </button>
               </div>
             </>

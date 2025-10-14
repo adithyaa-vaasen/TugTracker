@@ -32,7 +32,6 @@ function MapPage() {
   const [fullHistoricalData, setFullHistoricalData] = useState({});
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [vesselFilter, setVesselFilter] = useState("both");
   const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
@@ -221,10 +220,6 @@ function MapPage() {
             );
           } else if (groupFilter === "competitors") {
             filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
-          } else if (vesselFilter === "sm") {
-            filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
-          } else if (vesselFilter === "competitors") {
-            filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
           }
           
           if (selectedVessels.length === 0) {
@@ -311,10 +306,6 @@ function MapPage() {
         );
       } else if (groupFilter === "competitors") {
         vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
-      } else if (vesselFilter === "sm") {
-        vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
-      } else if (vesselFilter === "competitors") {
-        vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
       }
       
       if (selectedVessels.length === 0) {
@@ -333,7 +324,7 @@ function MapPage() {
         }
       }
     }
-  }, [selectedVessels, allVessels, mode, vesselFilter, groupFilter]);
+  }, [selectedVessels, allVessels, mode, groupFilter]);
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -368,10 +359,6 @@ function MapPage() {
         !smVesselGroups.citb.includes(v.mmsi)
       );
     } else if (groupFilter === "competitors") {
-      vessels = vessels.filter(v => !isSMTug(v.mmsi));
-    } else if (vesselFilter === "sm") {
-      vessels = vessels.filter(v => isSMTug(v.mmsi));
-    } else if (vesselFilter === "competitors") {
       vessels = vessels.filter(v => !isSMTug(v.mmsi));
     }
     
@@ -716,54 +703,6 @@ function MapPage() {
                 </>
               )}
               
-              <div style={{ display: "flex", gap: "5px", marginLeft: "10px" }}>
-                <button
-                  onClick={() => setVesselFilter("sm")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "sm" ? "#4CA61C" : "#fff",
-                    color: vesselFilter === "sm" ? "white" : "#4CA61C",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
-                  Saltchuk Marine
-                </button>
-                <button
-                  onClick={() => setVesselFilter("competitors")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "competitors" ? "#161CB0" : "#fff",
-                    color: vesselFilter === "competitors" ? "white" : "#161CB0",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
-                  Competitors
-                </button>
-                <button
-                  onClick={() => setVesselFilter("both")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "both" ? "#666" : "#fff",
-                    color: vesselFilter === "both" ? "white" : "#666",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
-                  Both
-                </button>
-              </div>
-              
               <div style={{ 
                 display: "flex", 
                 gap: "8px", 
@@ -875,8 +814,7 @@ function MapPage() {
             backgroundColor: "rgba(255, 255, 255, 0.95)",
             padding: "12px 16px",
             borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            zIndex: 1000,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",zIndex: 1000,
             border: "1px solid #ccc"
           }}>
             <div style={{ fontWeight: "bold", marginBottom: "8px", fontSize: "14px" }}>Speed Legend</div>

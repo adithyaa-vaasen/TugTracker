@@ -29,6 +29,7 @@ function MapPage() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const mapRef = useRef();
   const [historyRange, setHistoryRange] = useState(1);
+  const [fullHistoricalData, setFullHistoricalData] = useState({});
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vesselFilter, setVesselFilter] = useState("both"); // "SM", "competitors", "both"

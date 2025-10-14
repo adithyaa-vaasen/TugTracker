@@ -175,24 +175,19 @@ function MapPage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-focus search input when dropdown opens
   useEffect(() => {
     if (dropdownOpen && searchInputRef.current) {
-      setTimeout(() => {
-        searchInputRef.current.focus();
-      }, 100);
+      setTimeout(() => searchInputRef.current.focus(), 100);
     }
   }, [dropdownOpen]);
 
-  // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setDropdownOpen(false);
-        setDropdownSearch(""); // Clear search when closing
+        setDropdownSearch("");
       }
     };
-
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -204,16 +199,8 @@ function MapPage() {
         .then(res => res.json())
         .then(data => {
           const vesselsData = data.data || [];
-          setAllVessels(vesselsData); // Store all vessels for dropdown
+          setAllVessels(vesselsData);
           
-          // Debug: Log vessels by color group
-          console.log("=== Vessel Color Groups ===");
-          const citbVessels = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
-          const amnavVessels = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-          console.log("citb vessels (Light Blue):", citbVessels.map(v => v.name));
-          console.log("amnav vessels (Red):", amnavVessels.map(v => v.name));
-          
-          // Apply vessel filter first
           let filteredByCategory = vesselsData;
           if (vesselFilter === "sm") {
             filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
@@ -221,13 +208,10 @@ function MapPage() {
             filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
           }
           
-          // Then apply vessel selection
           if (selectedVessels.length === 0) {
             setVessels(filteredByCategory);
           } else {
-            const filtered = filteredByCategory.filter(v => 
-              selectedVessels.includes(v.mmsi)
-            );
+            const filtered = filteredByCategory.filter(v => selectedVessels.includes(v.mmsi));
             setVessels(filtered);
           }
         })
@@ -240,8 +224,9 @@ function MapPage() {
       const currentStep = speedOptions[playSpeed] || 1;
       const timer = setInterval(() => {
         setSliderIndex(prev => {
-          const nextIndex = Math.min(prev + currentStep, history.length - 1);
-          if (nextIndex >= history.length - 1) {
+          const maxLength = Math.max(...Object.values(historicalData).map(arr => arr.length));
+          const nextIndex = Math.min(prev + currentStep, maxLength - 1);
+          if (nextIndex >= maxLength - 1) {
             setIsPlaying(false);
           }
           return nextIndex;
@@ -249,77 +234,55 @@ function MapPage() {
       }, playSpeed);
       return () => clearInterval(timer);
     }
-  }, [isPlaying, mode, history, playSpeed]);
+  }, [isPlaying, mode, historicalData, playSpeed]);
 
   useEffect(() => {
-    if (history.length > 0) {
-      setVisiblePath(history.slice(0, sliderIndex + 1));
-    }
-  }, [sliderIndex, history]);
-
-  useEffect(() => {
-    if (mode === "historical" && fullHistory.length > 0) {
+    if (mode === "historical" && Object.keys(fullHistoricalData).length > 0) {
       const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
-      const sliced = fullHistory.filter(p => new Date(p.created_date) >= cutoff);
-      setHistory(sliced);
-      setVisiblePath(sliced);
+      const newData = {};
+      Object.keys(fullHistoricalData).forEach(mmsi => {
+        newData[mmsi] = fullHistoricalData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
+      });
+      setHistoricalData(newData);
       setSliderIndex(0);
     }
-  }, [historyRange]);
+  }, [historyRange, fullHistoricalData, mode]);
 
-  // Helper function to check if vessel is SM
   const isSMTug = (mmsi) => smTugsMMSI.includes(mmsi);
 
-  // Get vessel category
-  const getVesselCategory = (vessel) => {
-    return isSMTug(vessel.mmsi) ? "Saltchuk Marine" : "Competitor";
-  };
-
-  // Get vessel color
   const getVesselColor = (vessel) => {
-    // First check if vessel has a custom color
     if (customVesselColors[vessel.mmsi]) {
       return customVesselColors[vessel.mmsi];
     }
     
-    // Check if it's a Saltchuk Marine vessel
     if (isSMTug(vessel.mmsi)) {
-      // Check which SM group it belongs to
       if (smVesselGroups.citb.includes(vessel.mmsi)) {
-        return "#5DADE2"; // Light Blue for citb group
+        return "#5DADE2";
       } else if (smVesselGroups.amnav.includes(vessel.mmsi)) {
-        return "#E74C3C"; // Red for AM group
+        return "#E74C3C";
       } else {
-        return "#4CA61C"; // Green for Foss and other SM vessels
+        return "#4CA61C";
       }
     }
-    
-    // Blue for Competitors
     return "#161CB0";
   };
 
-  // Update displayed vessels when selection changes
   useEffect(() => {
     if (mode === "live" && allVessels.length > 0) {
       let vesselsToShow = allVessels;
       
-      // Filter by vessel category (SM/Competitors/Both)
       if (vesselFilter === "sm") {
         vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
       } else if (vesselFilter === "competitors") {
         vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
       }
       
-      // Then filter by selected vessels
       if (selectedVessels.length === 0) {
-        setVessels(vesselsToShow); // Show all in category if none selected
+        setVessels(vesselsToShow);
       } else {
-        const filtered = vesselsToShow.filter(v => 
-          selectedVessels.includes(v.mmsi)
-        );
+        const filtered = vesselsToShow.filter(v => selectedVessels.includes(v.mmsi));
         setVessels(filtered);
         
-        // Auto-adjust map view to fit selected vessels
         if (filtered.length > 0 && mapRef.current) {
           setTimeout(() => {
             const bounds = L.latLngBounds(filtered.map(v => [v.latitude, v.longitude]));
@@ -333,10 +296,8 @@ function MapPage() {
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
       if (prev.includes(mmsi)) {
-        // Remove if already selected
         return prev.filter(id => id !== mmsi);
       } else {
-        // Add if not selected
         return [...prev, mmsi];
       }
     });
@@ -345,24 +306,21 @@ function MapPage() {
   const handleSelectAll = () => {
     const filteredVessels = getFilteredVessels();
     if (selectedVessels.length === filteredVessels.length) {
-      setSelectedVessels([]); // Deselect all
+      setSelectedVessels([]);
     } else {
-      setSelectedVessels(filteredVessels.map(v => v.mmsi)); // Select all filtered
+      setSelectedVessels(filteredVessels.map(v => v.mmsi));
     }
   };
 
-  // Filter vessels based on search term AND vessel filter
   const getFilteredVessels = () => {
     let vessels = allVessels;
     
-    // First apply the vessel category filter
     if (vesselFilter === "sm") {
       vessels = vessels.filter(v => isSMTug(v.mmsi));
     } else if (vesselFilter === "competitors") {
       vessels = vessels.filter(v => !isSMTug(v.mmsi));
     }
     
-    // Then apply search filter
     if (dropdownSearch.trim()) {
       const searchTerm = dropdownSearch.toLowerCase().trim();
       vessels = vessels.filter(vessel => {
@@ -372,9 +330,7 @@ function MapPage() {
       });
     }
     
-    // Sort the vessels - Change this section for different sorting
     return vessels.sort((a, b) => {
-      // Sort by name alphabetically (A-Z)
       const nameA = (a.name || "").toLowerCase();
       const nameB = (b.name || "").toLowerCase();
       return nameA.localeCompare(nameB);
@@ -387,23 +343,67 @@ function MapPage() {
     return "red";
   };
 
-  const SegmentedPath = () => visiblePath.slice(0, -1).map((point, i) => {
-    const next = visiblePath[i + 1];
-    const color = getColor(point.speed);
-    return (
-      <Polyline
-        key={i}
-        positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
-        pathOptions={{ color }}
-      />
-    );
-  });
-
-  const currentCenter = mode === "live"
-    ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])
-    : (visiblePath[0] || [36.5, -122]);
-
-  const currentTimestamp = visiblePath[visiblePath.length - 1]?.created_date;
+  const fetchMultipleHistorical = (mmsiList, rangeDays = 1) => {
+    setLoadingHistory(true);
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+    
+    const mmsiString = mmsiList.join(',');
+    
+    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
+      .then(res => res.json())
+      .then(data => {
+        const allData = data.data || [];
+        
+        const groupedByMMSI = {};
+        allData.forEach(point => {
+          if (!groupedByMMSI[point.mmsi]) {
+            groupedByMMSI[point.mmsi] = [];
+          }
+          if (point.latitude && point.longitude) {
+            groupedByMMSI[point.mmsi].push(point);
+          }
+        });
+        
+        Object.keys(groupedByMMSI).forEach(mmsi => {
+          let sorted = groupedByMMSI[mmsi];
+          if (sorted.length > 10000) {
+            const step = Math.ceil(sorted.length / 1000);
+            sorted = sorted.filter((_, i) => i % step === 0);
+            groupedByMMSI[mmsi] = sorted;
+          }
+        });
+        
+        setFullHistoricalData(groupedByMMSI);
+        
+        const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+        const slicedData = {};
+        Object.keys(groupedByMMSI).forEach(mmsi => {
+          slicedData[mmsi] = groupedByMMSI[mmsi].filter(p => new Date(p.created_date) >= cutoff);
+        });
+        
+        setHistoricalData(slicedData);
+        setHistoricalVessels(mmsiList);
+        setSliderIndex(0);
+        setHistoryRange(rangeDays);
+        setLoadingHistory(false);
+        setMode("historical");
+        
+        setTimeout(() => {
+          if (mapRef.current) {
+            const allPoints = Object.values(slicedData).flat();
+            if (allPoints.length > 1) {
+              const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+              mapRef.current.fitBounds(bounds, { padding: [30, 30] });
+            }
+          }
+        }, 200);
+      })
+      .catch(err => {
+        console.error("Error fetching historical data:", err);
+        setLoadingHistory(false);
+      });
+  };
 
   const rotatedIcon = (angle, vessel) => L.divIcon({
     className: "ship-icon",
@@ -419,27 +419,34 @@ function MapPage() {
     iconAnchor: [10, 10]
   });
 
-  const startIcon = L.divIcon({ className: "start-icon", html: "🟢", iconSize: [20, 20], iconAnchor: [10, 10] });
+  const startIcon = L.divIcon({ 
+    className: "start-icon", 
+    html: "🟢", 
+    iconSize: [20, 20], 
+    iconAnchor: [10, 10] 
+  });
+
+  const currentCenter = mode === "live"
+    ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])
+    : (() => {
+        const allPoints = Object.values(historicalData).flat();
+        return allPoints[0] ? [allPoints[0].latitude, allPoints[0].longitude] : [36.5, -122];
+      })();
 
   return (
     <div>
       <style>
         {`
-          /* Move zoom controls to the right */
           .leaflet-container .leaflet-control-zoom {
             margin-right: 10px !important;
             margin-left: 0 !important;
             right: 0 !important;
             left: auto !important;
           }
-          
-          /* Also target the leaflet top left container */
           .leaflet-container .leaflet-top.leaflet-left {
             right: 0 !important;
             left: auto !important;
           }
-          
-          /* Move attribution to the left if needed */
           .leaflet-container .leaflet-control-attribution {
             right: auto !important;
             left: 0 !important;
@@ -450,7 +457,7 @@ function MapPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ccc" }}>
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
-        <span style={{ fontSize: "0.9em", color: "#555" }}>Click or Search a vessel to view the historical data</span>
+        <span style={{ fontSize: "0.9em", color: "#555" }}>Select vessels and click "View Historical" to compare</span>
       </header>
 
       {loadingHistory && (
@@ -460,17 +467,7 @@ function MapPage() {
       )}
 
       {loading && (
-        <div style={{
-          position: "absolute",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "#fff",
-          padding: "20px",
-          borderRadius: "8px",
-          boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-          zIndex: 1000
-        }}>
+        <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", background: "#fff", padding: "20px", borderRadius: "8px", boxShadow: "0 2px 6px rgba(0,0,0,0.2)", zIndex: 1000 }}>
           <h3>Loading...</h3>
         </div>
       )}
@@ -479,18 +476,20 @@ function MapPage() {
         <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
           {mode === "historical" ? (
             <>
-              <h3 style={{ margin: 0 }}>{selectedName} Historical Activity</h3>
+              <h3 style={{ margin: 0 }}>
+                {historicalVessels.length} Vessel{historicalVessels.length !== 1 ? 's' : ''} - Historical Activity
+              </h3>
               <button onClick={() => {
                 setMode("live");
-                setSelected(null);
-                setHistory([]);
-                setVisiblePath([]);
+                setHistoricalVessels([]);
+                setHistoricalData({});
+                setFullHistoricalData({});
                 setSliderIndex(0);
                 setIsPlaying(false);
               }}>
                 🔄 Back to Live
               </button>
-              {history.length > 0 && (
+              {Object.keys(historicalData).length > 0 && (
                 <>
                   <button onClick={() => setIsPlaying(!isPlaying)}>
                     {isPlaying ? "⏸ Pause" : "▶️ Play"}
@@ -507,54 +506,26 @@ function MapPage() {
                   <input
                     type="range"
                     min="0"
-                    max={history.length - 1}
+                    max={Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1}
                     value={sliderIndex}
                     onChange={(e) => setSliderIndex(parseInt(e.target.value))}
                     style={{ width: "300px" }}
                   />
-                  <span style={{ fontWeight: "bold" }}>{currentTimestamp}</span>
                 </>
               )}
             </>
           ) : (
             <>
-              {/* Multi-select dropdown */}
               <div ref={dropdownRef} style={{ position: "relative", display: "inline-block" }}>
                 <button
                   onClick={() => setDropdownOpen(!dropdownOpen)}
-                  style={{
-                    padding: "8px 16px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: "#fff",
-                    cursor: "pointer",
-                    minWidth: "200px",
-                    textAlign: "left"
-                  }}
+                  style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: "#fff", cursor: "pointer", minWidth: "200px", textAlign: "left" }}
                 >
-                  {selectedVessels.length === 0 
-                    ? "Select Vessels (All shown)" 
-                    : selectedVessels.length === 1 
-                      ? `1 vessel selected`
-                      : `${selectedVessels.length} vessels selected`
-                  } ▼
+                  {selectedVessels.length === 0 ? "Select Vessels (All shown)" : `${selectedVessels.length} vessel${selectedVessels.length !== 1 ? 's' : ''} selected`} ▼
                 </button>
                 
                 {dropdownOpen && (
-                  <div style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "#fff",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-                    zIndex: 1000,
-                    maxHeight: "350px",
-                    overflowY: "auto"
-                  }}>
-                    {/* Search input */}
+                  <div style={{ position: "absolute", top: "100%", left: 0, right: 0, backgroundColor: "#fff", border: "1px solid #ccc", borderRadius: "4px", boxShadow: "0 2px 6px rgba(0,0,0,0.2)", zIndex: 1000, maxHeight: "350px", overflowY: "auto" }}>
                     <div style={{ padding: "8px", borderBottom: "1px solid #eee", backgroundColor: "#f9f9f9" }}>
                       <input
                         ref={searchInputRef}
@@ -562,60 +533,26 @@ function MapPage() {
                         placeholder="Search vessels..."
                         value={dropdownSearch}
                         onChange={(e) => setDropdownSearch(e.target.value)}
-                        style={{
-                          width: "100%",
-                          padding: "6px 8px",
-                          border: "1px solid #ccc",
-                          borderRadius: "3px",
-                          fontSize: "14px",
-                          boxSizing: "border-box"
-                        }}
+                        style={{ width: "100%", padding: "6px 8px", border: "1px solid #ccc", borderRadius: "3px", fontSize: "14px", boxSizing: "border-box" }}
                         onClick={(e) => e.stopPropagation()}
                       />
                     </div>
 
-                    {/* Select All option */}
-                    <div
-                      onClick={handleSelectAll}
-                      style={{
-                        padding: "8px 16px",
-                        cursor: "pointer",
-                        backgroundColor: "#f5f5f5",
-                        borderBottom: "1px solid #eee",
-                        fontWeight: "bold"
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedVessels.length === getFilteredVessels().length && getFilteredVessels().length > 0}
-                        onChange={() => {}} // Handled by onClick
-                        style={{ marginRight: "8px" }}
-                      />
+                    <div onClick={handleSelectAll} style={{ padding: "8px 16px", cursor: "pointer", backgroundColor: "#f5f5f5", borderBottom: "1px solid #eee", fontWeight: "bold" }}>
+                      <input type="checkbox" checked={selectedVessels.length === getFilteredVessels().length && getFilteredVessels().length > 0} onChange={() => {}} style={{ marginRight: "8px" }} />
                       Select All ({getFilteredVessels().length} vessels)
                     </div>
                     
-                    {/* Individual vessel options */}
                     {getFilteredVessels().length > 0 ? (
                       getFilteredVessels().map(vessel => (
                         <div
                           key={vessel.mmsi}
                           onClick={() => handleVesselSelect(vessel.mmsi)}
-                          style={{
-                            padding: "8px 16px",
-                            cursor: "pointer",
-                            borderBottom: "1px solid #eee",
-                            backgroundColor: selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"
-                          }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = "#f0f0f0"}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"}
+                          style={{ padding: "8px 16px", cursor: "pointer", borderBottom: "1px solid #eee", backgroundColor: selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff" }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f0f0f0"}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"}
                         >
-                          <input
-                            type="checkbox"
-                            checked={selectedVessels.includes(vessel.mmsi)}
-                            onChange={() => {}} // Handled by onClick
-                            style={{ marginRight: "8px" }}
-                          />
-  
+                          <input type="checkbox" checked={selectedVessels.includes(vessel.mmsi)} onChange={() => {}} style={{ marginRight: "8px" }} />
                           {vessel.name || `MMSI: ${vessel.mmsi}`}
                         </div>
                       ))
@@ -629,91 +566,36 @@ function MapPage() {
               </div>
               
               {selectedVessels.length > 0 && (
-                <button 
-                  onClick={() => setSelectedVessels([])}
-                  style={{
-                    padding: "8px 16px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: "#fff",
-                    cursor: "pointer"
-                  }}
-                >
-                  🔁 Show All
-                </button>
+                <>
+                  <button onClick={() => setSelectedVessels([])} style={{ padding: "8px 16px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: "#fff", cursor: "pointer" }}>
+                    🔁 Show All
+                  </button>
+                  <button 
+                    onClick={() => fetchMultipleHistorical(selectedVessels, 1)}
+                    style={{ padding: "8px 16px", border: "1px solid #4CA61C", borderRadius: "4px", backgroundColor: "#4CA61C", color: "white", cursor: "pointer", fontWeight: "bold" }}
+                  >
+                    📊 View Historical ({selectedVessels.length})
+                  </button>
+                </>
               )}
               
-              {/* Vessel Category Toggle */}
               <div style={{ display: "flex", gap: "5px", marginLeft: "10px" }}>
-                <button
-                  onClick={() => setVesselFilter("sm")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "sm" ? "#4CA61C" : "#fff",
-                    color: vesselFilter === "sm" ? "white" : "#4CA61C",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
+                <button onClick={() => setVesselFilter("sm")} style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: vesselFilter === "sm" ? "#4CA61C" : "#fff", color: vesselFilter === "sm" ? "white" : "#4CA61C", cursor: "pointer", fontSize: "14px", fontWeight: "bold" }}>
                   Saltchuk Marine
                 </button>
-                <button
-                  onClick={() => setVesselFilter("competitors")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "competitors" ? "#161CB0" : "#fff",
-                    color: vesselFilter === "competitors" ? "white" : "#161CB0",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
+                <button onClick={() => setVesselFilter("competitors")} style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: vesselFilter === "competitors" ? "#161CB0" : "#fff", color: vesselFilter === "competitors" ? "white" : "#161CB0", cursor: "pointer", fontSize: "14px", fontWeight: "bold" }}>
                   Competitors
                 </button>
-                <button
-                  onClick={() => setVesselFilter("both")}
-                  style={{
-                    padding: "6px 12px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: vesselFilter === "both" ? "#666" : "#fff",
-                    color: vesselFilter === "both" ? "white" : "#666",
-                    cursor: "pointer",
-                    fontSize: "14px",
-                    fontWeight: "bold"
-                  }}
-                >
+                <button onClick={() => setVesselFilter("both")} style={{ padding: "6px 12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: vesselFilter === "both" ? "#666" : "#fff", color: vesselFilter === "both" ? "white" : "#666", cursor: "pointer", fontSize: "14px", fontWeight: "bold" }}>
                   Both
                 </button>
               </div>
               
-              {/* Color Legend */}
-              <div style={{ 
-                display: "flex", 
-                gap: "15px", 
-                marginLeft: "20px", 
-                padding: "5px 10px", 
-                backgroundColor: "#f5f5f5", 
-                borderRadius: "4px",
-                fontSize: "13px"
-              }}>
-                <span>
-                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
-                </span>
-                <span>
-                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
-                </span>
-                <span>
-                  <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>
-                </span>
-                <span>
-                  <span style={{ color: "#161CB0", fontWeight: "bold" }}>● Competitors</span>
-                </span>
+              <div style={{ display: "flex", gap: "15px", marginLeft: "20px", padding: "5px 10px", backgroundColor: "#f5f5f5", borderRadius: "4px", fontSize: "13px" }}>
+                <span><span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span></span>
+                <span><span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span></span>
+                <span><span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span></span>
+                <span><span style={{ color: "#161CB0", fontWeight: "bold" }}>● Competitors</span></span>
               </div>
             </>
           )}
@@ -724,14 +606,7 @@ function MapPage() {
             {[1, 7, 30].map(days => (
               <button
                 key={days}
-                style={{
-                  padding: "6px 12px",
-                  backgroundColor: historyRange === days ? "#007bff" : "#eee",
-                  color: historyRange === days ? "white" : "black",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
+                style={{ padding: "6px 12px", backgroundColor: historyRange === days ? "#007bff" : "#eee", color: historyRange === days ? "white" : "black", border: "1px solid #ccc", borderRadius: "4px", cursor: "pointer" }}
                 onClick={() => setHistoryRange(days)}
               >
                 {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
@@ -743,10 +618,7 @@ function MapPage() {
 
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-        />
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" attribution="&copy; OpenStreetMap contributors &copy; CARTO" />
 
         {mode === "live" && vessels.map((v, i) => (
           <Marker
@@ -755,44 +627,7 @@ function MapPage() {
             icon={rotatedIcon(v.heading || 0, v)}
             eventHandlers={{
               click: () => {
-                const rangeDays = 1; // Always default to 1 day on click
-                setLoadingHistory(true);
-                setSelected(v.mmsi);
-
-                const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-                const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-
-                fetch(`https://tug.foss.com/historical?mmsi=${v.mmsi}&start=${fullStart}&end=${now}`)
-                  .then(res => res.json())
-                  .then(data => {
-                    let sorted = (data.data || []).filter(d => d.latitude && d.longitude);
-
-                    if (sorted.length > 10000) {
-                      const step = Math.ceil(sorted.length / 1000);
-                      sorted = sorted.filter((_, i) => i % step === 0);
-                    }
-
-                    setFullHistory(sorted);  // Store all 30 days
-
-                    // Slice only the last 1 day for initial display
-                    const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
-                    const sliced = sorted.filter(p => new Date(p.created_date) >= cutoff);
-
-                    setHistory(sliced);
-                    setVisiblePath(sliced);
-                    setSliderIndex(0);
-                    if (sliced.length > 0) setSelectedName(sliced[0].name);
-                    setHistoryRange(rangeDays);
-                    setLoadingHistory(false);
-                    setMode("historical");
-
-                    setTimeout(() => {
-                      if (mapRef.current && sliced.length > 1) {
-                        const bounds = L.latLngBounds(sliced.map(p => [p.latitude, p.longitude]));
-                        mapRef.current.fitBounds(bounds, { padding: [30, 30] });
-                      }
-                    }, 200);
-                  });
+                fetchMultipleHistorical([v.mmsi], 1);
               }
             }}
           >
@@ -807,33 +642,53 @@ function MapPage() {
           </Marker>
         ))}
 
-        {mode === "historical" && (
-          <>
-            <SegmentedPath />
-            {visiblePath[0] && (
-              <Marker position={[visiblePath[0].latitude, visiblePath[0].longitude]} icon={startIcon}>
-                <Tooltip direction="top" offset={[0, -10]}>
-                  Start Time: {visiblePath[0].created_date}
-                </Tooltip>
-              </Marker>
-            )}
-            {visiblePath[visiblePath.length - 1] && (() => {
-              const endPoint = visiblePath[visiblePath.length - 1];
-              // Create a vessel object for the historical end icon
-              const endVessel = { mmsi: endPoint.mmsi || selected };
-              return (
-                <Marker
-                  position={[endPoint.latitude, endPoint.longitude]}
-                  icon={historicalEndIcon(endPoint.heading || 0, endVessel)}
-                >
+        {mode === "historical" && Object.keys(historicalData).map(mmsi => {
+          const points = historicalData[mmsi] || [];
+          const visiblePoints = points.slice(0, sliderIndex + 1);
+          
+          if (visiblePoints.length === 0) return null;
+          
+          const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
+          
+          return (
+            <React.Fragment key={mmsi}>
+              {visiblePoints.slice(0, -1).map((point, i) => {
+                const next = visiblePoints[i + 1];
+                const color = getColor(point.speed);
+                return (
+                  <Polyline
+                    key={`${mmsi}-${i}`}
+                    positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
+                    pathOptions={{ color }}
+                  />
+                );
+              })}
+              
+              {visiblePoints[0] && (
+                <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
                   <Tooltip direction="top" offset={[0, -10]}>
-                    End Time: {endPoint.created_date}
+                    <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[0].name || `MMSI: ${mmsi}`}</b><br />
+                    Start Time: {visiblePoints[0].created_date}
                   </Tooltip>
                 </Marker>
-              );
-            })()}
-          </>
-        )}
+              )}
+              
+              {visiblePoints[visiblePoints.length - 1] && (
+                <Marker
+                  position={[visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude]}
+                  icon={historicalEndIcon(visiblePoints[visiblePoints.length - 1].heading || 0, vesselInfo)}
+                >
+                  <Tooltip direction="top" offset={[0, -10]}>
+                    <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[visiblePoints.length - 1].name || `MMSI: ${mmsi}`}</b><br />
+                    Current Time: {visiblePoints[visiblePoints.length - 1].created_date}<br />
+                    Speed: {visiblePoints[visiblePoints.length - 1].speed} kn<br />
+                    Heading: {visiblePoints[visiblePoints.length - 1].heading}°
+                  </Tooltip>
+                </Marker>
+              )}
+            </React.Fragment>
+          );
+        })}
       </MapContainer>
     </div>
   );

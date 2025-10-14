@@ -33,7 +33,6 @@ function MapPage() {
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vesselFilter, setVesselFilter] = useState("both"); // "SM", "competitors", "both"
-  const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
   
@@ -208,20 +207,7 @@ function MapPage() {
           setAllVessels(vesselsData);
           
           let filteredByCategory = vesselsData;
-          
-          if (groupFilter === "amnav") {
-            filteredByCategory = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-          } else if (groupFilter === "citb") {
-            filteredByCategory = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
-          } else if (groupFilter === "foss") {
-            filteredByCategory = vesselsData.filter(v => 
-              isSMTug(v.mmsi) && 
-              !smVesselGroups.amnav.includes(v.mmsi) && 
-              !smVesselGroups.citb.includes(v.mmsi)
-            );
-          } else if (groupFilter === "competitors") {
-            filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
-          } else if (vesselFilter === "sm") {
+          if (vesselFilter === "sm") {
             filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
           } else if (vesselFilter === "competitors") {
             filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
@@ -299,19 +285,7 @@ function MapPage() {
     if (mode === "live" && allVessels.length > 0) {
       let vesselsToShow = allVessels;
       
-      if (groupFilter === "amnav") {
-        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-      } else if (groupFilter === "citb") {
-        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.citb.includes(v.mmsi));
-      } else if (groupFilter === "foss") {
-        vesselsToShow = vesselsToShow.filter(v => 
-          isSMTug(v.mmsi) && 
-          !smVesselGroups.amnav.includes(v.mmsi) && 
-          !smVesselGroups.citb.includes(v.mmsi)
-        );
-      } else if (groupFilter === "competitors") {
-        vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
-      } else if (vesselFilter === "sm") {
+      if (vesselFilter === "sm") {
         vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
       } else if (vesselFilter === "competitors") {
         vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
@@ -333,7 +307,7 @@ function MapPage() {
         }
       }
     }
-  }, [selectedVessels, allVessels, mode, vesselFilter, groupFilter]);
+  }, [selectedVessels, allVessels, mode, vesselFilter]);
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -357,19 +331,7 @@ function MapPage() {
   const getFilteredVessels = () => {
     let vessels = allVessels;
     
-    if (groupFilter === "amnav") {
-      vessels = vessels.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-    } else if (groupFilter === "citb") {
-      vessels = vessels.filter(v => smVesselGroups.citb.includes(v.mmsi));
-    } else if (groupFilter === "foss") {
-      vessels = vessels.filter(v => 
-        isSMTug(v.mmsi) && 
-        !smVesselGroups.amnav.includes(v.mmsi) && 
-        !smVesselGroups.citb.includes(v.mmsi)
-      );
-    } else if (groupFilter === "competitors") {
-      vessels = vessels.filter(v => !isSMTug(v.mmsi));
-    } else if (vesselFilter === "sm") {
+    if (vesselFilter === "sm") {
       vessels = vessels.filter(v => isSMTug(v.mmsi));
     } else if (vesselFilter === "competitors") {
       vessels = vessels.filter(v => !isSMTug(v.mmsi));
@@ -593,38 +555,198 @@ function MapPage() {
                     textAlign: "left"
                   }}
                 >
-                  ● CITB
+                  {selectedVessels.length === 0 
+                    ? "Select Vessels (All shown)" 
+                    : selectedVessels.length === 1 
+                      ? `1 vessel selected`
+                      : `${selectedVessels.length} vessels selected`
+                  } ▼
                 </button>
-                <button
-                  onClick={() => setGroupFilter(groupFilter === "foss" ? "all" : "foss")}
-                  style={{
-                    padding: "4px 10px",
+                
+                {dropdownOpen && (
+                  <div style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#fff",
                     border: "1px solid #ccc",
                     borderRadius: "4px",
-                    backgroundColor: groupFilter === "foss" ? "#4CA61C" : "#fff",
-                    color: groupFilter === "foss" ? "white" : "#4CA61C",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                    fontSize: "12px"
-                  }}
-                >
-                  ● Foss
-                </button>
+                    boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+                    zIndex: 1000,
+                    maxHeight: "350px",
+                    overflowY: "auto"
+                  }}>
+                    <div style={{ padding: "8px", borderBottom: "1px solid #eee", backgroundColor: "#f9f9f9" }}>
+                      <input
+                        ref={searchInputRef}
+                        type="text"
+                        placeholder="Search vessels..."
+                        value={dropdownSearch}
+                        onChange={(e) => setDropdownSearch(e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "6px 8px",
+                          border: "1px solid #ccc",
+                          borderRadius: "3px",
+                          fontSize: "14px",
+                          boxSizing: "border-box"
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
+
+                    <div
+                      onClick={handleSelectAll}
+                      style={{
+                        padding: "8px 16px",
+                        cursor: "pointer",
+                        backgroundColor: "#f5f5f5",
+                        borderBottom: "1px solid #eee",
+                        fontWeight: "bold"
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedVessels.length === getFilteredVessels().length && getFilteredVessels().length > 0}
+                        onChange={() => {}}
+                        style={{ marginRight: "8px" }}
+                      />
+                      Select All ({getFilteredVessels().length} vessels)
+                    </div>
+                    
+                    {getFilteredVessels().length > 0 ? (
+                      getFilteredVessels().map(vessel => (
+                        <div
+                          key={vessel.mmsi}
+                          onClick={() => handleVesselSelect(vessel.mmsi)}
+                          style={{
+                            padding: "8px 16px",
+                            cursor: "pointer",
+                            borderBottom: "1px solid #eee",
+                            backgroundColor: selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f0f0f0"}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = selectedVessels.includes(vessel.mmsi) ? "#e6f3ff" : "#fff"}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedVessels.includes(vessel.mmsi)}
+                            onChange={() => {}}
+                            style={{ marginRight: "8px" }}
+                          />
+                          {vessel.name || `MMSI: ${vessel.mmsi}`}
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: "8px 16px", color: "#666", fontStyle: "italic" }}>
+                        No vessels found matching "{dropdownSearch}"
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+              
+              {selectedVessels.length > 0 && (
+                <>
+                  <button 
+                    onClick={() => setSelectedVessels([])}
+                    style={{
+                      padding: "8px 16px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      backgroundColor: "#fff",
+                      cursor: "pointer"
+                    }}
+                  >
+                    🔁 Show All
+                  </button>
+                  <button 
+                    onClick={() => fetchMultipleHistorical(selectedVessels, 1)}
+                    style={{
+                      padding: "8px 16px",
+                      border: "1px solid #4CA61C",
+                      borderRadius: "4px",
+                      backgroundColor: "#4CA61C",
+                      color: "white",
+                      cursor: "pointer",
+                      fontWeight: "bold"
+                    }}
+                  >
+                    📊 View Historical ({selectedVessels.length})
+                  </button>
+                </>
+              )}
+              
+              <div style={{ display: "flex", gap: "5px", marginLeft: "10px" }}>
                 <button
-                  onClick={() => setGroupFilter(groupFilter === "competitors" ? "all" : "competitors")}
+                  onClick={() => setVesselFilter("sm")}
                   style={{
-                    padding: "4px 10px",
+                    padding: "6px 12px",
                     border: "1px solid #ccc",
                     borderRadius: "4px",
-                    backgroundColor: groupFilter === "competitors" ? "#161CB0" : "#fff",
-                    color: groupFilter === "competitors" ? "white" : "#161CB0",
+                    backgroundColor: vesselFilter === "sm" ? "#4CA61C" : "#fff",
+                    color: vesselFilter === "sm" ? "white" : "#4CA61C",
                     cursor: "pointer",
-                    fontWeight: "bold",
-                    fontSize: "12px"
+                    fontSize: "14px",
+                    fontWeight: "bold"
                   }}
                 >
-                  ● Competitors
+                  Saltchuk Marine
                 </button>
+                <button
+                  onClick={() => setVesselFilter("competitors")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: vesselFilter === "competitors" ? "#161CB0" : "#fff",
+                    color: vesselFilter === "competitors" ? "white" : "#161CB0",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Competitors
+                </button>
+                <button
+                  onClick={() => setVesselFilter("both")}
+                  style={{
+                    padding: "6px 12px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: vesselFilter === "both" ? "#666" : "#fff",
+                    color: vesselFilter === "both" ? "white" : "#666",
+                    cursor: "pointer",
+                    fontSize: "14px",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Both
+                </button>
+              </div>
+              
+              <div style={{ 
+                display: "flex", 
+                gap: "15px", 
+                marginLeft: "20px", 
+                padding: "5px 10px", 
+                backgroundColor: "#f5f5f5", 
+                borderRadius: "4px",
+                fontSize: "13px"
+              }}>
+                <span>
+                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
+                </span>
+                <span>
+                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
+                </span>
+                <span>
+                  <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>
+                </span>
+                <span>
+                  <span style={{ color: "#161CB0", fontWeight: "bold" }}>● Competitors</span>
+                </span>
               </div>
             </>
           )}
@@ -652,42 +774,12 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
-
-        {mode === "historical" && (
-          <div style={{
-            position: "absolute",
-            bottom: "20px",
-            left: "20px",
-            backgroundColor: "rgba(255, 255, 255, 0.95)",
-            padding: "12px 16px",
-            borderRadius: "6px",
-            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
-            zIndex: 1000,
-            border: "1px solid #ccc"
-          }}>
-            <div style={{ fontWeight: "bold", marginBottom: "8px", fontSize: "14px" }}>Speed Legend</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "30px", height: "4px", backgroundColor: "green", borderRadius: "2px" }}></div>
-                <span>≤ 8.5 knots</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "30px", height: "4px", backgroundColor: "yellow", borderRadius: "2px" }}></div>
-                <span>8.5 - 9.5 knots</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <div style={{ width: "30px", height: "4px", backgroundColor: "red", borderRadius: "2px" }}></div>
-                <span>&gt; 9.5 knots</span>
-              </div>
-            </div>
-          </div>
-        )}
 
         {mode === "live" && vessels.map((v, i) => (
           <Marker
@@ -724,20 +816,12 @@ function MapPage() {
               {visiblePoints.slice(0, -1).map((point, i) => {
                 const next = visiblePoints[i + 1];
                 const color = getColor(point.speed);
-                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
                 return (
                   <Polyline
                     key={`${mmsi}-${i}`}
                     positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
-                    pathOptions={{ color, weight: 3 }}
-                  >
-                    <Tooltip direction="top" offset={[0, -10]} sticky>
-                      <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
-                      Time: {point.created_date}<br />
-                      Speed: {point.speed} kn<br />
-                      Heading: {point.heading}°
-                    </Tooltip>
-                  </Polyline>
+                    pathOptions={{ color }}
+                  />
                 );
               })}
               

@@ -14,8 +14,8 @@ import "leaflet-polylinedecorator";
 function MapPage() {
   const [mode, setMode] = useState("live");
   const [vessels, setVessels] = useState([]);
-  const [allVessels, setAllVessels] = useState([]); // Store all vessels for dropdown
-  const [selectedVessels, setSelectedVessels] = useState([]); // Selected vessel MMSIs
+  const [allVessels, setAllVessels] = useState([]);
+  const [selectedVessels, setSelectedVessels] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState("");
   const [selected, setSelected] = useState(null);
@@ -32,7 +32,8 @@ function MapPage() {
   const [fullHistoricalData, setFullHistoricalData] = useState({});
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [vesselFilter, setVesselFilter] = useState("both"); // "SM", "competitors", "both"
+  const [vesselFilter, setVesselFilter] = useState("both");
+  const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
   
@@ -207,7 +208,20 @@ function MapPage() {
           setAllVessels(vesselsData);
           
           let filteredByCategory = vesselsData;
-          if (vesselFilter === "sm") {
+          
+          if (groupFilter === "amnav") {
+            filteredByCategory = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
+          } else if (groupFilter === "citb") {
+            filteredByCategory = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
+          } else if (groupFilter === "foss") {
+            filteredByCategory = vesselsData.filter(v => 
+              isSMTug(v.mmsi) && 
+              !smVesselGroups.amnav.includes(v.mmsi) && 
+              !smVesselGroups.citb.includes(v.mmsi)
+            );
+          } else if (groupFilter === "competitors") {
+            filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
+          } else if (vesselFilter === "sm") {
             filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
           } else if (vesselFilter === "competitors") {
             filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
@@ -285,7 +299,19 @@ function MapPage() {
     if (mode === "live" && allVessels.length > 0) {
       let vesselsToShow = allVessels;
       
-      if (vesselFilter === "sm") {
+      if (groupFilter === "amnav") {
+        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.amnav.includes(v.mmsi));
+      } else if (groupFilter === "citb") {
+        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.citb.includes(v.mmsi));
+      } else if (groupFilter === "foss") {
+        vesselsToShow = vesselsToShow.filter(v => 
+          isSMTug(v.mmsi) && 
+          !smVesselGroups.amnav.includes(v.mmsi) && 
+          !smVesselGroups.citb.includes(v.mmsi)
+        );
+      } else if (groupFilter === "competitors") {
+        vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
+      } else if (vesselFilter === "sm") {
         vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
       } else if (vesselFilter === "competitors") {
         vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
@@ -307,7 +333,7 @@ function MapPage() {
         }
       }
     }
-  }, [selectedVessels, allVessels, mode, vesselFilter]);
+  }, [selectedVessels, allVessels, mode, vesselFilter, groupFilter]);
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -331,7 +357,19 @@ function MapPage() {
   const getFilteredVessels = () => {
     let vessels = allVessels;
     
-    if (vesselFilter === "sm") {
+    if (groupFilter === "amnav") {
+      vessels = vessels.filter(v => smVesselGroups.amnav.includes(v.mmsi));
+    } else if (groupFilter === "citb") {
+      vessels = vessels.filter(v => smVesselGroups.citb.includes(v.mmsi));
+    } else if (groupFilter === "foss") {
+      vessels = vessels.filter(v => 
+        isSMTug(v.mmsi) && 
+        !smVesselGroups.amnav.includes(v.mmsi) && 
+        !smVesselGroups.citb.includes(v.mmsi)
+      );
+    } else if (groupFilter === "competitors") {
+      vessels = vessels.filter(v => !isSMTug(v.mmsi));
+    } else if (vesselFilter === "sm") {
       vessels = vessels.filter(v => isSMTug(v.mmsi));
     } else if (vesselFilter === "competitors") {
       vessels = vessels.filter(v => !isSMTug(v.mmsi));
@@ -728,25 +766,73 @@ function MapPage() {
               
               <div style={{ 
                 display: "flex", 
-                gap: "15px", 
+                gap: "8px", 
                 marginLeft: "20px", 
                 padding: "5px 10px", 
                 backgroundColor: "#f5f5f5", 
                 borderRadius: "4px",
                 fontSize: "13px"
               }}>
-                <span>
-                  <span style={{ color: "#E74C3C", fontWeight: "bold" }}>● AmNav</span>
-                </span>
-                <span>
-                  <span style={{ color: "#5DADE2", fontWeight: "bold" }}>● CITB</span>
-                </span>
-                <span>
-                  <span style={{ color: "#4CA61C", fontWeight: "bold" }}>● Foss</span>
-                </span>
-                <span>
-                  <span style={{ color: "#161CB0", fontWeight: "bold" }}>● Competitors</span>
-                </span>
+                <button
+                  onClick={() => setGroupFilter(groupFilter === "amnav" ? "all" : "amnav")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: groupFilter === "amnav" ? "#E74C3C" : "#fff",
+                    color: groupFilter === "amnav" ? "white" : "#E74C3C",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  ● AmNav
+                </button>
+                <button
+                  onClick={() => setGroupFilter(groupFilter === "citb" ? "all" : "citb")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: groupFilter === "citb" ? "#5DADE2" : "#fff",
+                    color: groupFilter === "citb" ? "white" : "#5DADE2",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  ● CITB
+                </button>
+                <button
+                  onClick={() => setGroupFilter(groupFilter === "foss" ? "all" : "foss")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: groupFilter === "foss" ? "#4CA61C" : "#fff",
+                    color: groupFilter === "foss" ? "white" : "#4CA61C",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  ● Foss
+                </button>
+                <button
+                  onClick={() => setGroupFilter(groupFilter === "competitors" ? "all" : "competitors")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: groupFilter === "competitors" ? "#161CB0" : "#fff",
+                    color: groupFilter === "competitors" ? "white" : "#161CB0",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  ● Competitors
+                </button>
               </div>
             </>
           )}
@@ -774,12 +860,42 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
+
+        {mode === "historical" && (
+          <div style={{
+            position: "absolute",
+            bottom: "20px",
+            left: "20px",
+            backgroundColor: "rgba(255, 255, 255, 0.95)",
+            padding: "12px 16px",
+            borderRadius: "6px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+            zIndex: 1000,
+            border: "1px solid #ccc"
+          }}>
+            <div style={{ fontWeight: "bold", marginBottom: "8px", fontSize: "14px" }}>Speed Legend</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "30px", height: "4px", backgroundColor: "green", borderRadius: "2px" }}></div>
+                <span>≤ 8.5 knots</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "30px", height: "4px", backgroundColor: "yellow", borderRadius: "2px" }}></div>
+                <span>8.5 - 9.5 knots</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "30px", height: "4px", backgroundColor: "red", borderRadius: "2px" }}></div>
+                <span>&gt; 9.5 knots</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {mode === "live" && vessels.map((v, i) => (
           <Marker
@@ -816,12 +932,20 @@ function MapPage() {
               {visiblePoints.slice(0, -1).map((point, i) => {
                 const next = visiblePoints[i + 1];
                 const color = getColor(point.speed);
+                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
                 return (
                   <Polyline
                     key={`${mmsi}-${i}`}
                     positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
-                    pathOptions={{ color }}
-                  />
+                    pathOptions={{ color, weight: 3 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} sticky>
+                      <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
+                      Time: {point.created_date}<br />
+                      Speed: {point.speed} kn<br />
+                      Heading: {point.heading}°
+                    </Tooltip>
+                  </Polyline>
                 );
               })}
               

@@ -33,6 +33,7 @@ function MapPage() {
   const [fullHistory, setFullHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [vesselFilter, setVesselFilter] = useState("both"); // "SM", "competitors", "both"
+  const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
   

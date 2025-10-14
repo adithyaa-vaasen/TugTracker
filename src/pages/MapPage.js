@@ -149,6 +149,7 @@ function MapPage() {
       366926740,  // TIM QUIGG --SoCal
       367581220,  // JAMIE RENEA --NorCal
       366998840,  // MILLENNIUM MAVERICK --SoCal
+      367569830,  // BARBARA JEAN MULHOLLAND --SoCal
     ],
     
     // All other SM vessels (Foss and others) - Green (default)

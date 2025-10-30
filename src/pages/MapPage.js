@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -95,9 +95,7 @@ function MapPage() {
     303466000,  // SARAH AVRICK - AM --Other
     367642530,  // BO BRUSCO --PNW
     366982340,  // BRYNN FOSS --PNW
-    //366932980,  // DREW FOSS --PNW
     366767140,  // GARTH FOSS --PNW
-    //366976870,  // HENRY FOSS --PNW
     366767150,  // LINDSEY FOSS --PNW
     366919770,  // LYNN MARIE --PNW
     366982320,  // MARSHALL FOSS --PNW
@@ -479,6 +477,29 @@ function MapPage() {
     ? Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1
     : 0;
 
+  // NEW: Get current time at slider position
+  const getCurrentSliderTime = () => {
+    if (Object.keys(historicalData).length === 0) return null;
+    const times = Object.values(historicalData).map(arr => {
+      const idx = Math.min(sliderIndex, arr.length - 1);
+      return arr[idx]?.created_date ? new Date(arr[idx].created_date) : null;
+    }).filter(t => t !== null);
+    if (times.length === 0) return null;
+    return new Date(Math.min(...times.map(t => t.getTime())));
+  };
+
+  const currentSliderTime = useMemo(() => {
+    const dt = getCurrentSliderTime();
+    if (!dt) return "–";
+    return dt.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  }, [sliderIndex, historicalData]);
+
   return (
     <div>
       <style>
@@ -561,14 +582,20 @@ function MapPage() {
                       <option value={50}>Very Fast</option>
                     </select>
                   </label>
-                  <input
-                    type="range"
-                    min="0"
-                    max={maxSliderValue}
-                    value={sliderIndex}
-                    onChange={(e) => setSliderIndex(parseInt(e.target.value))}
-                    style={{ width: "300px" }}
-                  />
+                  {/* ONLY THIS LINE WAS REPLACED */}
+                  <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "320px" }}>
+                    <input
+                      type="range"
+                      min="0"
+                      max={maxSliderValue}
+                      value={sliderIndex}
+                      onChange={(e) => setSliderIndex(parseInt(e.target.value))}
+                      style={{ flex: 1 }}
+                    />
+                    <span style={{ minWidth: "140px", fontWeight: "600", fontSize: "0.9rem" }}>
+                      {currentSliderTime}
+                    </span>
+                  </div>
                 </>
               )}
             </>
@@ -747,7 +774,7 @@ function MapPage() {
                     fontSize: "12px"
                   }}
                 >
-                  ● AmNav
+                  AmNav
                 </button>
                 <button
                   onClick={() => setGroupFilter(groupFilter === "citb" ? "all" : "citb")}
@@ -762,7 +789,7 @@ function MapPage() {
                     fontSize: "12px"
                   }}
                 >
-                  ● CITB
+                  CITB
                 </button>
                 <button
                   onClick={() => setGroupFilter(groupFilter === "foss" ? "all" : "foss")}
@@ -777,7 +804,7 @@ function MapPage() {
                     fontSize: "12px"
                   }}
                 >
-                  ● Foss
+                  Foss
                 </button>
                 <button
                   onClick={() => setGroupFilter(groupFilter === "competitors" ? "all" : "competitors")}

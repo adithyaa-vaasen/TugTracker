@@ -952,12 +952,12 @@ function MapPage() {
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+          url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
         <TileLayer
-          url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
-          attribution="Map data: &copy; OpenSeaMap contributors"
+          url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
+          attribution=""
         />
 
         {mode === "historical" && (

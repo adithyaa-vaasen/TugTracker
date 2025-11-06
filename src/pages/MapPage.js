@@ -952,9 +952,9 @@ function MapPage() {
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-          attribution="&copy; OpenStreetMap contributors"
-          maxZoom={19}
+          url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
+          attribution="&copy; Google Maps"
+          maxZoom={20}
         />
 
         {mode === "historical" && (

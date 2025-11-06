@@ -915,41 +915,50 @@ function MapPage() {
           
           const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
           
-          // Interpolate between points for smoother color transitions
-          const interpolatedSegments = [];
-          for (let i = 0; i < visiblePoints.length - 1; i++) {
-            const p1 = visiblePoints[i];
-            const p2 = visiblePoints[i + 1];
-            const steps = 10; // More steps = smoother gradient
-            
-            for (let j = 0; j < steps; j++) {
-              const t = j / steps;
-              const lat = p1.latitude + (p2.latitude - p1.latitude) * t;
-              const lng = p1.longitude + (p2.longitude - p1.longitude) * t;
-              const speed = p1.speed + (p2.speed - p2.speed) * t;
-              
-              interpolatedSegments.push({
-                start: [lat, lng],
-                end: [
-                  p1.latitude + (p2.latitude - p1.latitude) * (t + 1/steps),
-                  p1.longitude + (p2.longitude - p1.longitude) * (t + 1/steps)
-                ],
-                speed,
-                point: p1
-              });
-            }
-          }
-          
           return (
             <React.Fragment key={mmsi}>
-              {interpolatedSegments.map((seg, i) => (
-                <Polyline
-                  key={`${mmsi}-${i}`}
-                  positions={[seg.start, seg.end]}
-                  pathOptions={{ color: getColor(seg.speed), weight: 3, opacity: 0.8 }}
-                />
-              ))}
-              {/* Start and end markers remain the same */}
+              {visiblePoints.slice(0, -1).map((point, i) => {
+                const next = visiblePoints[i + 1];
+                const color = getColor(point.speed);
+                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
+                return (
+                  <Polyline
+                    key={`${mmsi}-${i}`}
+                    positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
+                    pathOptions={{ color, weight: 3 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} sticky>
+                      <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
+                      Time: {point.created_date}<br />
+                      Speed: {point.speed} kn<br />
+                      Heading: {point.heading}°
+                    </Tooltip>
+                  </Polyline>
+                );
+              })}
+              
+              {visiblePoints[0] && (
+                <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
+                  <Tooltip direction="top" offset={[0, -10]}>
+                    <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[0].name || `MMSI: ${mmsi}`}</b><br />
+                    Start Time: {visiblePoints[0].created_date}
+                  </Tooltip>
+                </Marker>
+              )}
+              
+              {visiblePoints[visiblePoints.length - 1] && (
+                <Marker
+                  position={[visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude]}
+                  icon={historicalEndIcon(visiblePoints[visiblePoints.length - 1].heading || 0, vesselInfo)}
+                >
+                  <Tooltip direction="top" offset={[0, -10]}>
+                    <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[visiblePoints.length - 1].name || `MMSI: ${mmsi}`}</b><br />
+                    Current Time: {visiblePoints[visiblePoints.length - 1].created_date}<br />
+                    Speed: {visiblePoints[visiblePoints.length - 1].speed} kn<br />
+                    Heading: {visiblePoints[visiblePoints.length - 1].heading}°
+                  </Tooltip>
+                </Marker>
+              )}
             </React.Fragment>
           );
         })}

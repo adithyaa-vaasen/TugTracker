@@ -11,6 +11,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
 
+// ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
 const getColorRGB = (colorName) => {
   const colors = {
@@ -105,6 +106,7 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
     };
   }, [map, historicalData, sliderIndex, getColor]);
 };
+// ============ ADDITIONS END HERE ============
 
 function MapPage() {
   const [mode, setMode] = useState("live");
@@ -595,8 +597,10 @@ function MapPage() {
     });
   }, [sliderIndex, historicalData]);
 
+  // ============ ONLY ADDITION IN THE COMPONENT BODY ============
   // Use canvas overlay for gradient lines in historical mode
   useCanvasOverlay(mapRef.current, historicalData, sliderIndex, getColor);
+  // ==============================================================
 
   return (
     <div>
@@ -1014,7 +1018,26 @@ function MapPage() {
           
           return (
             <React.Fragment key={mmsi}>
-              {/* Start marker */}
+              {visiblePoints.slice(0, -1).map((point, i) => {
+                const next = visiblePoints[i + 1];
+                const color = getColor(point.speed);
+                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
+                return (
+                  <Polyline
+                    key={`${mmsi}-${i}`}
+                    positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
+                    pathOptions={{ color, weight: 3, opacity: 0 }}
+                  >
+                    <Tooltip direction="top" offset={[0, -10]} sticky>
+                      <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
+                      Time: {point.created_date}<br />
+                      Speed: {point.speed} kn<br />
+                      Heading: {point.heading}°
+                    </Tooltip>
+                  </Polyline>
+                );
+              })}
+              
               {visiblePoints[0] && (
                 <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
                   <Tooltip direction="top" offset={[0, -10]}>
@@ -1024,7 +1047,6 @@ function MapPage() {
                 </Marker>
               )}
               
-              {/* End marker */}
               {visiblePoints[visiblePoints.length - 1] && (
                 <Marker
                   position={[visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude]}

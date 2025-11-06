@@ -11,6 +11,101 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
 
+// Helper function to convert color names to RGB
+const getColorRGB = (colorName) => {
+  const colors = {
+    green: 'rgb(0, 200, 0)',
+    yellow: 'rgb(255, 215, 0)',
+    red: 'rgb(255, 0, 0)'
+  };
+  return colors[colorName] || colorName;
+};
+
+// Custom hook for canvas overlay with gradient lines
+const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
+  useEffect(() => {
+    if (!map || Object.keys(historicalData).length === 0) return;
+
+    const CanvasLayer = L.Layer.extend({
+      onAdd: function(map) {
+        this._map = map;
+        this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
+        this._ctx = this._canvas.getContext('2d');
+        
+        const size = this._map.getSize();
+        this._canvas.width = size.x;
+        this._canvas.height = size.y;
+        
+        this._map.getPanes().overlayPane.appendChild(this._canvas);
+        this._map.on('moveend zoom', this._reset, this);
+        this._reset();
+      },
+      
+      onRemove: function(map) {
+        L.DomUtil.remove(this._canvas);
+        map.off('moveend zoom', this._reset, this);
+      },
+      
+      _reset: function() {
+        const topLeft = this._map.containerPointToLayerPoint([0, 0]);
+        L.DomUtil.setPosition(this._canvas, topLeft);
+        this._redraw();
+      },
+      
+      _redraw: function() {
+        if (!this._map) return;
+        
+        const size = this._map.getSize();
+        this._canvas.width = size.x;
+        this._canvas.height = size.y;
+        
+        const ctx = this._ctx;
+        ctx.clearRect(0, 0, size.x, size.y);
+        
+        // Draw each vessel's path
+        Object.keys(historicalData).forEach(mmsi => {
+          const points = historicalData[mmsi] || [];
+          const visiblePoints = points.slice(0, sliderIndex + 1);
+          
+          if (visiblePoints.length < 2) return;
+          
+          // Draw segments with gradients
+          for (let i = 0; i < visiblePoints.length - 1; i++) {
+            const p1 = visiblePoints[i];
+            const p2 = visiblePoints[i + 1];
+            
+            const point1 = this._map.latLngToContainerPoint([p1.latitude, p1.longitude]);
+            const point2 = this._map.latLngToContainerPoint([p2.latitude, p2.longitude]);
+            
+            // Create gradient
+            const gradient = ctx.createLinearGradient(point1.x, point1.y, point2.x, point2.y);
+            const color1 = getColorRGB(getColor(p1.speed));
+            const color2 = getColorRGB(getColor(p2.speed));
+            
+            gradient.addColorStop(0, color1);
+            gradient.addColorStop(1, color2);
+            
+            ctx.beginPath();
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 3;
+            ctx.lineCap = 'round';
+            ctx.moveTo(point1.x, point1.y);
+            ctx.lineTo(point2.x, point2.y);
+            ctx.stroke();
+          }
+        });
+      }
+    });
+    
+    const canvasLayer = new CanvasLayer();
+    canvasLayer.addTo(map);
+    
+    return () => {
+      map.removeLayer(canvasLayer);
+    };
+  }, [map, historicalData, sliderIndex, getColor]);
+};
+
 function MapPage() {
   const [mode, setMode] = useState("live");
   const [vessels, setVessels] = useState([]);
@@ -36,103 +131,6 @@ function MapPage() {
   const dropdownRef = useRef();
   const searchInputRef = useRef();
   
- 
-  // Add this helper function at the top level (outside the component)
-  const getColorRGB = (colorName) => {
-    const colors = {
-      green: 'rgb(0, 200, 0)',
-      yellow: 'rgb(255, 215, 0)',
-      red: 'rgb(255, 0, 0)'
-    };
-    return colors[colorName] || colorName;
-  };
-
-  // Add this custom hook (outside the component, after getColorRGB)
-  const useCanvasOverlay = (map, historicalData, sliderIndex, allVessels, getVesselColor, getColor) => {
-    useEffect(() => {
-      if (!map || Object.keys(historicalData).length === 0) return;
-
-      const CanvasLayer = L.Layer.extend({
-        onAdd: function(map) {
-          this._map = map;
-          this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
-          this._ctx = this._canvas.getContext('2d');
-          
-          const size = this._map.getSize();
-          this._canvas.width = size.x;
-          this._canvas.height = size.y;
-          
-          this._map.getPanes().overlayPane.appendChild(this._canvas);
-          this._map.on('moveend zoom', this._reset, this);
-          this._reset();
-        },
-        
-        onRemove: function(map) {
-          L.DomUtil.remove(this._canvas);
-          map.off('moveend zoom', this._reset, this);
-        },
-        
-        _reset: function() {
-          const topLeft = this._map.containerPointToLayerPoint([0, 0]);
-          L.DomUtil.setPosition(this._canvas, topLeft);
-          this._redraw();
-        },
-        
-        _redraw: function() {
-          if (!this._map) return;
-          
-          const size = this._map.getSize();
-          this._canvas.width = size.x;
-          this._canvas.height = size.y;
-          
-          const ctx = this._ctx;
-          ctx.clearRect(0, 0, size.x, size.y);
-          
-          // Draw each vessel's path
-          Object.keys(historicalData).forEach(mmsi => {
-            const points = historicalData[mmsi] || [];
-            const visiblePoints = points.slice(0, sliderIndex + 1);
-            
-            if (visiblePoints.length < 2) return;
-            
-            // Draw segments with gradients
-            for (let i = 0; i < visiblePoints.length - 1; i++) {
-              const p1 = visiblePoints[i];
-              const p2 = visiblePoints[i + 1];
-              
-              const point1 = this._map.latLngToContainerPoint([p1.latitude, p1.longitude]);
-              const point2 = this._map.latLngToContainerPoint([p2.latitude, p2.longitude]);
-              
-              // Create gradient
-              const gradient = ctx.createLinearGradient(point1.x, point1.y, point2.x, point2.y);
-              const color1 = getColorRGB(getColor(p1.speed));
-              const color2 = getColorRGB(getColor(p2.speed));
-              
-              gradient.addColorStop(0, color1);
-              gradient.addColorStop(1, color2);
-              
-              ctx.beginPath();
-              ctx.strokeStyle = gradient;
-              ctx.lineWidth = 3;
-              ctx.lineCap = 'round';
-              ctx.moveTo(point1.x, point1.y);
-              ctx.lineTo(point2.x, point2.y);
-              ctx.stroke();
-            }
-          });
-        }
-      });
-      
-      const canvasLayer = new CanvasLayer();
-      canvasLayer.addTo(map);
-      
-      return () => {
-        map.removeLayer(canvasLayer);
-      };
-    }, [map, historicalData, sliderIndex, allVessels, getVesselColor, getColor]);
-  };
-
-
   // SM vessel MMSIs
   const smTugsMMSI = [
     368066590,  // BERING WIND --CITB
@@ -574,7 +572,7 @@ function MapPage() {
     ? Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1
     : 0;
 
-  // NEW: Get current time at slider position
+  // Get current time at slider position
   const getCurrentSliderTime = () => {
     if (Object.keys(historicalData).length === 0) return null;
     const times = Object.values(historicalData).map(arr => {
@@ -597,8 +595,9 @@ function MapPage() {
     });
   }, [sliderIndex, historicalData]);
 
-  useCanvasOverlay(mapRef.current, historicalData, sliderIndex, allVessels, getVesselColor, getColor);
-  
+  // Use canvas overlay for gradient lines in historical mode
+  useCanvasOverlay(mapRef.current, historicalData, sliderIndex, getColor);
+
   return (
     <div>
       <style>
@@ -681,7 +680,6 @@ function MapPage() {
                       <option value={50}>Very Fast</option>
                     </select>
                   </label>
-                  {/* ONLY THIS LINE WAS REPLACED */}
                   <div style={{ display: "flex", alignItems: "center", gap: "8px", width: "320px" }}>
                     <input
                       type="range"
@@ -1016,26 +1014,7 @@ function MapPage() {
           
           return (
             <React.Fragment key={mmsi}>
-              {visiblePoints.slice(0, -1).map((point, i) => {
-                const next = visiblePoints[i + 1];
-                const color = getColor(point.speed);
-                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
-                return (
-                  <Polyline
-                    key={`${mmsi}-${i}`}
-                    positions={[[point.latitude, point.longitude], [next.latitude, next.longitude]]}
-                    pathOptions={{ color, weight: 3 }}
-                  >
-                    <Tooltip direction="top" offset={[0, -10]} sticky>
-                      <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
-                      Time: {point.created_date}<br />
-                      Speed: {point.speed} kn<br />
-                      Heading: {point.heading}°
-                    </Tooltip>
-                  </Polyline>
-                );
-              })}
-              
+              {/* Start marker */}
               {visiblePoints[0] && (
                 <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
                   <Tooltip direction="top" offset={[0, -10]}>
@@ -1045,6 +1024,7 @@ function MapPage() {
                 </Marker>
               )}
               
+              {/* End marker */}
               {visiblePoints[visiblePoints.length - 1] && (
                 <Marker
                   position={[visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude]}

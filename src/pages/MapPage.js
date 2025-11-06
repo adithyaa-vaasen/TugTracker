@@ -361,6 +361,17 @@ function MapPage() {
       });
       setHistoricalData(newData);
       setSliderIndex(0);
+      
+      // Auto-fit map to historical data when time range changes
+      setTimeout(() => {
+        if (mapRef.current) {
+          const allPoints = Object.values(newData).flat();
+          if (allPoints.length > 1) {
+            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
+          }
+        }
+      }, 200);
     }
   }, [historyRange, fullHistoricalData, mode]);
 
@@ -410,6 +421,14 @@ function MapPage() {
       
       if (selectedVessels.length === 0) {
         setVessels(vesselsToShow);
+        
+        // Auto-fit map to filtered vessels when group filter changes
+        if (vesselsToShow.length > 0 && mapRef.current && groupFilter !== "all") {
+          setTimeout(() => {
+            const bounds = L.latLngBounds(vesselsToShow.map(v => [v.latitude, v.longitude]));
+            mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+          }, 100);
+        }
       } else {
         const filtered = vesselsToShow.filter(v => 
           selectedVessels.includes(v.mmsi)

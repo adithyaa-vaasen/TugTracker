@@ -956,8 +956,8 @@ function MapPage() {
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png"
-          attribution=""
+          url="https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png"
+          attribution="Map data: &copy; OpenSeaMap contributors"
         />
 
         {mode === "historical" && (

@@ -12,15 +12,11 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
 import { find } from 'geo-tz';
 
-// ============ TIMEZONE HELPER FUNCTION ============
-// Helper function to convert timestamp to vessel's local time
+// ============ TIMEZONE HELPER FUNCTIONS (NEW) ============
 const getVesselLocalTime = (latitude, longitude, utcTimestamp) => {
   try {
-    // Get timezone identifier for the coordinates
     const timezones = find(latitude, longitude);
-    const timezone = timezones[0]; // e.g., "America/Los_Angeles", "Pacific/Honolulu"
-    
-    // Convert to local time
+    const timezone = timezones[0];
     const date = new Date(utcTimestamp);
     return date.toLocaleString('en-US', {
       timeZone: timezone,
@@ -37,19 +33,15 @@ const getVesselLocalTime = (latitude, longitude, utcTimestamp) => {
   }
 };
 
-// Helper function to get timezone abbreviation
 const getTimezoneAbbr = (latitude, longitude) => {
   try {
     const timezones = find(latitude, longitude);
     const timezone = timezones[0];
-    
-    // Get timezone abbreviation
     const date = new Date();
     const abbr = date.toLocaleTimeString('en-US', {
       timeZone: timezone,
       timeZoneName: 'short'
     }).split(' ').pop();
-    
     return abbr;
   } catch (error) {
     return '';
@@ -57,6 +49,7 @@ const getTimezoneAbbr = (latitude, longitude) => {
 };
 // ============ END TIMEZONE HELPERS ============
 
+// ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
 const getColorRGB = (colorName) => {
   const colors = {
@@ -151,6 +144,7 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
     };
   }, [map, historicalData, sliderIndex, getColor]);
 };
+// ============ ADDITIONS END HERE ============
 
 function MapPage() {
   const [mode, setMode] = useState("live");
@@ -637,11 +631,9 @@ function MapPage() {
     ? Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1
     : 0;
 
-  // Get current time at slider position - NOW WITH LOCAL TIME
+  // MODIFIED: Get current time at slider position with local timezone
   const getCurrentSliderTime = () => {
     if (Object.keys(historicalData).length === 0) return null;
-    
-    // Find the earliest timestamp at current slider position
     const times = Object.values(historicalData).map(arr => {
       const idx = Math.min(sliderIndex, arr.length - 1);
       const point = arr[idx];
@@ -651,30 +643,23 @@ function MapPage() {
         lon: point.longitude 
       } : null;
     }).filter(t => t !== null);
-    
     if (times.length === 0) return null;
-    
-    // Get earliest time point
-    const earliestPoint = times.reduce((prev, curr) => 
-      prev.timestamp < curr.timestamp ? prev : curr
-    );
-    
-    return earliestPoint;
+    return times.reduce((prev, curr) => prev.timestamp < curr.timestamp ? prev : curr);
   };
 
+  // MODIFIED: Display slider time with local timezone
   const currentSliderTime = useMemo(() => {
     const pointData = getCurrentSliderTime();
     if (!pointData) return "–";
-    
-    // Get local time based on vessel's coordinates
     const localTime = getVesselLocalTime(pointData.lat, pointData.lon, pointData.timestamp);
     const tzAbbr = getTimezoneAbbr(pointData.lat, pointData.lon);
-    
     return `${localTime} ${tzAbbr}`;
   }, [sliderIndex, historicalData]);
 
+  // ============ ONLY ADDITION IN THE COMPONENT BODY ============
   // Use canvas overlay for gradient lines in historical mode
   useCanvasOverlay(mapRef.current, historicalData, sliderIndex, getColor);
+  // ==============================================================
 
   return (
     <div>
@@ -767,6 +752,7 @@ function MapPage() {
                       onChange={(e) => setSliderIndex(parseInt(e.target.value))}
                       style={{ flex: 1 }}
                     />
+                    {/* MODIFIED: Width increased to accommodate timezone abbreviation */}
                     <span style={{ minWidth: "180px", fontWeight: "600", fontSize: "0.9rem" }}>
                       {currentSliderTime}
                     </span>
@@ -1060,6 +1046,7 @@ function MapPage() {
           </div>
         )}
 
+        {/* MODIFIED: Live mode tooltips now show local time */}
         {mode === "live" && vessels.map((v, i) => (
           <Marker
             key={i}
@@ -1082,6 +1069,7 @@ function MapPage() {
           </Marker>
         ))}
 
+        {/* MODIFIED: Historical mode tooltips now show local time */}
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
           const points = historicalData[mmsi] || [];
           const visiblePoints = points.slice(0, sliderIndex + 1);

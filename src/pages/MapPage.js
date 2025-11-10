@@ -10,44 +10,6 @@ import {
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
-import { find } from 'geo-tz';
-
-// ============ TIMEZONE HELPER FUNCTIONS (NEW) ============
-const getVesselLocalTime = (latitude, longitude, utcTimestamp) => {
-  try {
-    const timezones = find(latitude, longitude);
-    const timezone = timezones[0];
-    const date = new Date(utcTimestamp);
-    return date.toLocaleString('en-US', {
-      timeZone: timezone,
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: true
-    });
-  } catch (error) {
-    console.error('Error getting timezone:', error);
-    return new Date(utcTimestamp).toLocaleString();
-  }
-};
-
-const getTimezoneAbbr = (latitude, longitude) => {
-  try {
-    const timezones = find(latitude, longitude);
-    const timezone = timezones[0];
-    const date = new Date();
-    const abbr = date.toLocaleTimeString('en-US', {
-      timeZone: timezone,
-      timeZoneName: 'short'
-    }).split(' ').pop();
-    return abbr;
-  } catch (error) {
-    return '';
-  }
-};
-// ============ END TIMEZONE HELPERS ============
 
 // ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
@@ -170,6 +132,10 @@ function MapPage() {
   const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
+  
+  // ============ NEW: Cache for historical data ============
+  const historicalCacheRef = useRef({});
+  // ========================================================
   
   // SM vessel MMSIs
   const smTugsMMSI = [
@@ -543,46 +509,81 @@ function MapPage() {
     return "red";
   };
 
+  // ============ OPTIMIZED: Lazy loading historical data ============
   const fetchMultipleHistorical = (mmsiList, rangeDays = 1) => {
     setLoadingHistory(true);
+    
+    // Create cache key
+    const cacheKey = mmsiList.sort().join(',');
+    
+    // Check if we have cached data for these vessels
+    if (historicalCacheRef.current[cacheKey]) {
+      console.log('Using cached data for', cacheKey);
+      const cachedData = historicalCacheRef.current[cacheKey];
+      setFullHistoricalData(cachedData);
+      
+      // Filter for requested range
+      const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+      const slicedData = {};
+      Object.keys(cachedData).forEach(mmsi => {
+        slicedData[mmsi] = cachedData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
+      });
+      
+      setHistoricalData(slicedData);
+      setSliderIndex(0);
+      setHistoryRange(rangeDays);
+      setLoadingHistory(false);
+      setMode("historical");
+      
+      setTimeout(() => {
+        if (mapRef.current) {
+          const allPoints = Object.values(slicedData).flat();
+          if (allPoints.length > 1) {
+            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
+          }
+        }
+      }, 200);
+      
+      return;
+    }
+    
+    // OPTIMIZATION 1: Only fetch what we need initially (start with requested range)
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+    const start = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
     
     const mmsiString = mmsiList.join(',');
     
-    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
+    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${start}&end=${now}`)
       .then(res => res.json())
       .then(data => {
         const allData = data.data || [];
         
+        // OPTIMIZATION 2: Process data more efficiently
         const groupedByMMSI = {};
         allData.forEach(point => {
-          if (!groupedByMMSI[point.mmsi]) {
-            groupedByMMSI[point.mmsi] = [];
-          }
           if (point.latitude && point.longitude) {
+            if (!groupedByMMSI[point.mmsi]) {
+              groupedByMMSI[point.mmsi] = [];
+            }
             groupedByMMSI[point.mmsi].push(point);
           }
         });
         
+        // OPTIMIZATION 3: Downsample during processing, not after
         Object.keys(groupedByMMSI).forEach(mmsi => {
-          let sorted = groupedByMMSI[mmsi];
-          if (sorted.length > 10000) {
-            const step = Math.ceil(sorted.length / 1000);
-            sorted = sorted.filter((_, i) => i % step === 0);
-            groupedByMMSI[mmsi] = sorted;
+          const points = groupedByMMSI[mmsi];
+          if (points.length > 5000) {
+            const step = Math.ceil(points.length / 1000);
+            groupedByMMSI[mmsi] = points.filter((_, i) => i % step === 0);
           }
         });
         
+        // Cache the data
+        historicalCacheRef.current[cacheKey] = groupedByMMSI;
+        
         setFullHistoricalData(groupedByMMSI);
-        
-        const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
-        const slicedData = {};
-        Object.keys(groupedByMMSI).forEach(mmsi => {
-          slicedData[mmsi] = groupedByMMSI[mmsi].filter(p => new Date(p.created_date) >= cutoff);
-        });
-        
-        setHistoricalData(slicedData);
+        setHistoricalData(groupedByMMSI);
         setSliderIndex(0);
         setHistoryRange(rangeDays);
         setLoadingHistory(false);
@@ -590,19 +591,67 @@ function MapPage() {
         
         setTimeout(() => {
           if (mapRef.current) {
-            const allPoints = Object.values(slicedData).flat();
+            const allPoints = Object.values(groupedByMMSI).flat();
             if (allPoints.length > 1) {
               const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
               mapRef.current.fitBounds(bounds, { padding: [30, 30] });
             }
           }
         }, 200);
+        
+        // OPTIMIZATION 4: Background fetch for extended ranges (lazy load)
+        if (rangeDays < 30) {
+          setTimeout(() => {
+            fetchExtendedHistoricalData(mmsiList, cacheKey);
+          }, 1000);
+        }
       })
       .catch(err => {
         console.error("Error fetching historical data:", err);
         setLoadingHistory(false);
       });
   };
+  
+  // ============ NEW: Background fetch for extended data ============
+  const fetchExtendedHistoricalData = (mmsiList, cacheKey) => {
+    console.log('Background fetching extended data...');
+    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+    const mmsiString = mmsiList.join(',');
+    
+    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
+      .then(res => res.json())
+      .then(data => {
+        const allData = data.data || [];
+        const groupedByMMSI = {};
+        
+        allData.forEach(point => {
+          if (point.latitude && point.longitude) {
+            if (!groupedByMMSI[point.mmsi]) {
+              groupedByMMSI[point.mmsi] = [];
+            }
+            groupedByMMSI[point.mmsi].push(point);
+          }
+        });
+        
+        Object.keys(groupedByMMSI).forEach(mmsi => {
+          const points = groupedByMMSI[mmsi];
+          if (points.length > 5000) {
+            const step = Math.ceil(points.length / 1000);
+            groupedByMMSI[mmsi] = points.filter((_, i) => i % step === 0);
+          }
+        });
+        
+        // Update cache with full data
+        historicalCacheRef.current[cacheKey] = groupedByMMSI;
+        setFullHistoricalData(groupedByMMSI);
+        console.log('Background fetch complete - extended data cached');
+      })
+      .catch(err => {
+        console.error("Error fetching extended historical data:", err);
+      });
+  };
+  // =================================================================
 
   const currentCenter = mode === "live"
     ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])
@@ -631,35 +680,31 @@ function MapPage() {
     ? Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1
     : 0;
 
-  // MODIFIED: Get current time at slider position with local timezone
+  // Get current time at slider position
   const getCurrentSliderTime = () => {
     if (Object.keys(historicalData).length === 0) return null;
     const times = Object.values(historicalData).map(arr => {
       const idx = Math.min(sliderIndex, arr.length - 1);
-      const point = arr[idx];
-      return point?.created_date ? { 
-        timestamp: new Date(point.created_date), 
-        lat: point.latitude, 
-        lon: point.longitude 
-      } : null;
+      return arr[idx]?.created_date ? new Date(arr[idx].created_date) : null;
     }).filter(t => t !== null);
     if (times.length === 0) return null;
-    return times.reduce((prev, curr) => prev.timestamp < curr.timestamp ? prev : curr);
+    return new Date(Math.min(...times.map(t => t.getTime())));
   };
 
-  // MODIFIED: Display slider time with local timezone
   const currentSliderTime = useMemo(() => {
-    const pointData = getCurrentSliderTime();
-    if (!pointData) return "–";
-    const localTime = getVesselLocalTime(pointData.lat, pointData.lon, pointData.timestamp);
-    const tzAbbr = getTimezoneAbbr(pointData.lat, pointData.lon);
-    return `${localTime} ${tzAbbr}`;
+    const dt = getCurrentSliderTime();
+    if (!dt) return "–";
+    return dt.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit",
+    });
   }, [sliderIndex, historicalData]);
 
-  // ============ ONLY ADDITION IN THE COMPONENT BODY ============
   // Use canvas overlay for gradient lines in historical mode
   useCanvasOverlay(mapRef.current, historicalData, sliderIndex, getColor);
-  // ==============================================================
 
   return (
     <div>
@@ -752,8 +797,7 @@ function MapPage() {
                       onChange={(e) => setSliderIndex(parseInt(e.target.value))}
                       style={{ flex: 1 }}
                     />
-                    {/* MODIFIED: Width increased to accommodate timezone abbreviation */}
-                    <span style={{ minWidth: "180px", fontWeight: "600", fontSize: "0.9rem" }}>
+                    <span style={{ minWidth: "140px", fontWeight: "600", fontSize: "0.9rem" }}>
                       {currentSliderTime}
                     </span>
                   </div>
@@ -1046,7 +1090,6 @@ function MapPage() {
           </div>
         )}
 
-        {/* MODIFIED: Live mode tooltips now show local time */}
         {mode === "live" && vessels.map((v, i) => (
           <Marker
             key={i}
@@ -1064,12 +1107,11 @@ function MapPage() {
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />
               Course: {v.course}°<br />
-              Local Time: {getVesselLocalTime(v.latitude, v.longitude, v.created_date)}
+              Time: {v.created_date}
             </Tooltip>
           </Marker>
         ))}
 
-        {/* MODIFIED: Historical mode tooltips now show local time */}
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
           const points = historicalData[mmsi] || [];
           const visiblePoints = points.slice(0, sliderIndex + 1);
@@ -1092,7 +1134,7 @@ function MapPage() {
                   >
                     <Tooltip direction="top" offset={[0, -10]} sticky>
                       <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
-                      Local Time: {getVesselLocalTime(point.latitude, point.longitude, point.created_date)}<br />
+                      Time: {point.created_date}<br />
                       Speed: {point.speed} kn<br />
                       Heading: {point.heading}°
                     </Tooltip>
@@ -1104,7 +1146,7 @@ function MapPage() {
                 <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
                   <Tooltip direction="top" offset={[0, -10]}>
                     <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[0].name || `MMSI: ${mmsi}`}</b><br />
-                    Start Time: {getVesselLocalTime(visiblePoints[0].latitude, visiblePoints[0].longitude, visiblePoints[0].created_date)}
+                    Start Time: {visiblePoints[0].created_date}
                   </Tooltip>
                 </Marker>
               )}
@@ -1116,7 +1158,7 @@ function MapPage() {
                 >
                   <Tooltip direction="top" offset={[0, -10]}>
                     <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[visiblePoints.length - 1].name || `MMSI: ${mmsi}`}</b><br />
-                    Current Time: {getVesselLocalTime(visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude, visiblePoints[visiblePoints.length - 1].created_date)}<br />
+                    Current Time: {visiblePoints[visiblePoints.length - 1].created_date}<br />
                     Speed: {visiblePoints[visiblePoints.length - 1].speed} kn<br />
                     Heading: {visiblePoints[visiblePoints.length - 1].heading}°
                   </Tooltip>

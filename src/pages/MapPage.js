@@ -1053,6 +1053,7 @@ function MapPage() {
             <Tooltip direction="top" offset={[0, -10]}>
               <b style={{ color: getVesselColor(v) }}>{v.name}</b><br />
               MMSI: {v.mmsi}<br />
+              Owner: {v.owner || 'Other'}<br />
               Speed: {v.speed} kn<br />
               Heading: {v.heading}°<br />
               Course: {v.course}°<br />
@@ -1083,6 +1084,7 @@ function MapPage() {
                   >
                     <Tooltip direction="top" offset={[0, -10]} sticky>
                       <b style={{ color: getVesselColor(vesselInfo) }}>{point.name || `MMSI: ${mmsi}`}</b><br />
+                      Owner: {point.owner || 'Other'}<br />
                       Time: {point.created_date}<br />
                       Speed: {point.speed} kn<br />
                       Heading: {point.heading}°
@@ -1095,6 +1097,7 @@ function MapPage() {
                 <Marker position={[visiblePoints[0].latitude, visiblePoints[0].longitude]} icon={startIcon}>
                   <Tooltip direction="top" offset={[0, -10]}>
                     <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[0].name || `MMSI: ${mmsi}`}</b><br />
+                    Owner: {visiblePoints[0].owner || 'Other'}<br />
                     Start Time: {visiblePoints[0].created_date}
                   </Tooltip>
                 </Marker>
@@ -1107,6 +1110,7 @@ function MapPage() {
                 >
                   <Tooltip direction="top" offset={[0, -10]}>
                     <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[visiblePoints.length - 1].name || `MMSI: ${mmsi}`}</b><br />
+                    Owner: {visiblePoints[visiblePoints.length - 1].owner || 'Other'}<br />
                     Current Time: {visiblePoints[visiblePoints.length - 1].created_date}<br />
                     Speed: {visiblePoints[visiblePoints.length - 1].speed} kn<br />
                     Heading: {visiblePoints[visiblePoints.length - 1].heading}°

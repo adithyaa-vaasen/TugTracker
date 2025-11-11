@@ -133,9 +133,8 @@ function MapPage() {
   const dropdownRef = useRef();
   const searchInputRef = useRef();
   
-  // ============ NEW: Cache for historical data ============
+  // Cache for historical data
   const historicalCacheRef = useRef({});
-  // ========================================================
   
   // SM vessel MMSIs
   const smTugsMMSI = [
@@ -509,7 +508,6 @@ function MapPage() {
     return "red";
   };
 
-  // ============ OPTIMIZED: Lazy loading historical data ============
   const fetchMultipleHistorical = (mmsiList, rangeDays = 1) => {
     setLoadingHistory(true);
     
@@ -548,18 +546,18 @@ function MapPage() {
       return;
     }
     
-    // OPTIMIZATION 1: Only fetch what we need initially (start with requested range)
+    // Fetch data from server
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const start = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
     
     const mmsiString = mmsiList.join(',');
     
-    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${start}&end=${now}`)
+    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
       .then(res => res.json())
       .then(data => {
         const allData = data.data || [];
         
-        // OPTIMIZATION 2: Process data more efficiently
+        // Group by MMSI - NO DOWNSAMPLING
         const groupedByMMSI = {};
         allData.forEach(point => {
           if (point.latitude && point.longitude) {
@@ -567,15 +565,6 @@ function MapPage() {
               groupedByMMSI[point.mmsi] = [];
             }
             groupedByMMSI[point.mmsi].push(point);
-          }
-        });
-        
-        // OPTIMIZATION 3: Downsample during processing, not after
-        Object.keys(groupedByMMSI).forEach(mmsi => {
-          const points = groupedByMMSI[mmsi];
-          if (points.length > 5000) {
-            const step = Math.ceil(points.length / 1000);
-            groupedByMMSI[mmsi] = points.filter((_, i) => i % step === 0);
           }
         });
         
@@ -583,7 +572,15 @@ function MapPage() {
         historicalCacheRef.current[cacheKey] = groupedByMMSI;
         
         setFullHistoricalData(groupedByMMSI);
-        setHistoricalData(groupedByMMSI);
+        
+        // Filter for requested range
+        const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+        const slicedData = {};
+        Object.keys(groupedByMMSI).forEach(mmsi => {
+          slicedData[mmsi] = groupedByMMSI[mmsi].filter(p => new Date(p.created_date) >= cutoff);
+        });
+        
+        setHistoricalData(slicedData);
         setSliderIndex(0);
         setHistoryRange(rangeDays);
         setLoadingHistory(false);
@@ -591,67 +588,19 @@ function MapPage() {
         
         setTimeout(() => {
           if (mapRef.current) {
-            const allPoints = Object.values(groupedByMMSI).flat();
+            const allPoints = Object.values(slicedData).flat();
             if (allPoints.length > 1) {
               const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
               mapRef.current.fitBounds(bounds, { padding: [30, 30] });
             }
           }
         }, 200);
-        
-        // OPTIMIZATION 4: Background fetch for extended ranges (lazy load)
-        if (rangeDays < 30) {
-          setTimeout(() => {
-            fetchExtendedHistoricalData(mmsiList, cacheKey);
-          }, 1000);
-        }
       })
       .catch(err => {
         console.error("Error fetching historical data:", err);
         setLoadingHistory(false);
       });
   };
-  
-  // ============ NEW: Background fetch for extended data ============
-  const fetchExtendedHistoricalData = (mmsiList, cacheKey) => {
-    console.log('Background fetching extended data...');
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
-    const mmsiString = mmsiList.join(',');
-    
-    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
-      .then(res => res.json())
-      .then(data => {
-        const allData = data.data || [];
-        const groupedByMMSI = {};
-        
-        allData.forEach(point => {
-          if (point.latitude && point.longitude) {
-            if (!groupedByMMSI[point.mmsi]) {
-              groupedByMMSI[point.mmsi] = [];
-            }
-            groupedByMMSI[point.mmsi].push(point);
-          }
-        });
-        
-        Object.keys(groupedByMMSI).forEach(mmsi => {
-          const points = groupedByMMSI[mmsi];
-          if (points.length > 5000) {
-            const step = Math.ceil(points.length / 1000);
-            groupedByMMSI[mmsi] = points.filter((_, i) => i % step === 0);
-          }
-        });
-        
-        // Update cache with full data
-        historicalCacheRef.current[cacheKey] = groupedByMMSI;
-        setFullHistoricalData(groupedByMMSI);
-        console.log('Background fetch complete - extended data cached');
-      })
-      .catch(err => {
-        console.error("Error fetching extended historical data:", err);
-      });
-  };
-  // =================================================================
 
   const currentCenter = mode === "live"
     ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])

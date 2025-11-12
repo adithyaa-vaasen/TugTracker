@@ -357,7 +357,7 @@ function MapPage() {
 
   useEffect(() => {
     if (mode === "historical" && Object.keys(fullHistoricalData).length > 0) {
-      const cutoff = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - (historyRange * 24 * 60 * 60 * 1000) - (6 * 60 * 60 * 1000));
       const newData = {};
       Object.keys(fullHistoricalData).forEach(mmsi => {
         newData[mmsi] = fullHistoricalData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
@@ -521,7 +521,7 @@ function MapPage() {
       setFullHistoricalData(cachedData);
       
       // Filter for requested range
-      const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+      const cutoff = new Date(Date.now() - (rangeDays * 24 * 60 * 60 * 1000) - (6 * 60 * 60 * 1000));
       const slicedData = {};
       Object.keys(cachedData).forEach(mmsi => {
         slicedData[mmsi] = cachedData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
@@ -574,7 +574,7 @@ function MapPage() {
         setFullHistoricalData(groupedByMMSI);
         
         // Filter for requested range
-        const cutoff = new Date(Date.now() - rangeDays * 24 * 60 * 60 * 1000);
+        const cutoff = new Date(Date.now() - (rangeDays * 24 * 60 * 60 * 1000) - (6 * 60 * 60 * 1000));
         const slicedData = {};
         Object.keys(groupedByMMSI).forEach(mmsi => {
           slicedData[mmsi] = groupedByMMSI[mmsi].filter(p => new Date(p.created_date) >= cutoff);

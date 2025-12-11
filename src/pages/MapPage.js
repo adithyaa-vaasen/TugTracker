@@ -136,12 +136,10 @@ function MapPage() {
   // Cache for historical data
   const historicalCacheRef = useRef({});
   
-  // ============ NEW: Nearby vessels state ============
+  // ============ NEW: Nearby vessels state (Live mode only) ============
   const [showNearbyVessels, setShowNearbyVessels] = useState(false);
   const [nearbyVessels, setNearbyVessels] = useState([]);
-  const [nearbyHistoricalData, setNearbyHistoricalData] = useState([]);
-  const nearbyTimestampCacheRef = useRef({}); // Cache for timestamp queries
-  // ===================================================
+  // ===================================================================
   
   // SM vessel MMSIs
   const smTugsMMSI = [
@@ -323,44 +321,11 @@ function MapPage() {
       fetchNearbyVessels();
       const interval = setInterval(fetchNearbyVessels, 4 * 60 * 1000);
       return () => clearInterval(interval);
-    } else {
+    } else if (mode === "live") {
       setNearbyVessels([]);
     }
   }, [showNearbyVessels, mode]);
   // ===================================================
-  
-  // ============ NEW: Fetch nearby vessels at specific timestamp ============
-  const fetchNearbyAtTimestamp = async (timestamp, tugMMSIs) => {
-    if (!showNearbyVessels || !timestamp || tugMMSIs.length === 0) {
-      setNearbyHistoricalData([]);
-      return;
-    }
-    
-    // Check cache first
-    const cacheKey = `${tugMMSIs.sort().join(',')}_${timestamp}`;
-    if (nearbyTimestampCacheRef.current[cacheKey]) {
-      setNearbyHistoricalData(nearbyTimestampCacheRef.current[cacheKey]);
-      return;
-    }
-    
-    const mmsiString = tugMMSIs.join(',');
-    
-    try {
-      const response = await fetch(
-        `https://tug.foss.com/historical/nearby/timestamp?mmsi_called=${mmsiString}&timestamp=${encodeURIComponent(timestamp)}`
-      );
-      const data = await response.json();
-      const nearbyData = data.data || [];
-      
-      // Cache the result
-      nearbyTimestampCacheRef.current[cacheKey] = nearbyData;
-      setNearbyHistoricalData(nearbyData);
-    } catch (err) {
-      console.error("Error fetching nearby vessels at timestamp:", err);
-      setNearbyHistoricalData([]);
-    }
-  };
-  // ========================================================================
 
   const fetchLiveData = () => {
     if (mode === "live") {
@@ -443,26 +408,6 @@ function MapPage() {
       }, 200);
     }
   }, [historyRange, fullHistoricalData, mode]);
-  
-  // ============ NEW: Fetch nearby vessels when slider changes ============
-  useEffect(() => {
-    if (mode === "historical" && showNearbyVessels && Object.keys(historicalData).length > 0) {
-      // Get current timestamp from slider position
-      const times = Object.values(historicalData).map(arr => {
-        const idx = Math.min(sliderIndex, arr.length - 1);
-        return arr[idx]?.created_date;
-      }).filter(t => t);
-      
-      if (times.length > 0) {
-        const currentTimestamp = times[0]; // Use first vessel's timestamp
-        const tugMMSIs = Object.keys(historicalData).map(mmsi => parseInt(mmsi));
-        fetchNearbyAtTimestamp(currentTimestamp, tugMMSIs);
-      }
-    } else if (mode === "historical") {
-      setNearbyHistoricalData([]);
-    }
-  }, [sliderIndex, mode, showNearbyVessels, historicalData]);
-  // ======================================================================
 
   const isSMTug = (mmsi) => smTugsMMSI.includes(mmsi);
 
@@ -777,23 +722,27 @@ function MapPage() {
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
         
-        {/* ============ NEW: Nearby Vessels Checkbox on Right ============ */}
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-          <input
-            type="checkbox"
-            id="nearbyVesselsCheckbox"
-            checked={showNearbyVessels}
-            onChange={(e) => setShowNearbyVessels(e.target.checked)}
-            style={{ cursor: "pointer", width: "16px", height: "16px" }}
-          />
-          <label 
-            htmlFor="nearbyVesselsCheckbox" 
-            style={{ cursor: "pointer", fontSize: "14px", fontWeight: "500", color: "#333" }}
-          >
-            Show Nearby Vessels
-          </label>
-        </div>
-        {/* =============================================================== */}
+        {/* ============ Nearby Vessels Checkbox (Live mode only) ============ */}
+        {mode === "live" ? (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input
+              type="checkbox"
+              id="nearbyVesselsCheckbox"
+              checked={showNearbyVessels}
+              onChange={(e) => setShowNearbyVessels(e.target.checked)}
+              style={{ cursor: "pointer", width: "16px", height: "16px" }}
+            />
+            <label 
+              htmlFor="nearbyVesselsCheckbox" 
+              style={{ cursor: "pointer", fontSize: "14px", fontWeight: "500", color: "#333" }}
+            >
+              Show Nearby Vessels
+            </label>
+          </div>
+        ) : (
+          <span style={{ fontSize: "0.9em", color: "#555" }}>Historical mode</span>
+        )}
+        {/* ================================================================== */}
       </header>
 
       {loadingHistory && (
@@ -1195,27 +1144,6 @@ function MapPage() {
           </Marker>
         ))}
         {/* ============================================ */}
-
-        {/* ============ NEW: Historical nearby vessels ============ */}
-        {mode === "historical" && nearbyHistoricalData.map((v, i) => (
-          <Marker
-            key={`nearby-hist-${i}`}
-            position={[v.latitude, v.longitude]}
-            icon={nearbyIcon(v.heading || 0)}
-          >
-            <Tooltip direction="top" offset={[0, -10]}>
-              <b style={{ color: "#808080" }}>{v.name || `MMSI: ${v.mmsi}`}</b><br />
-              MMSI: {v.mmsi}<br />
-              Type: {v.shipType || 'Unknown'}<br />
-              Speed: {v.speed} kn<br />
-              Heading: {v.heading}°<br />
-              Course: {v.course}°<br />
-              Time: {v.created_date}<br />
-              <span style={{ fontSize: "11px", fontStyle: "italic" }}>Detected by tug: {v.detected_by_tug}</span>
-            </Tooltip>
-          </Marker>
-        ))}
-        {/* ====================================================== */}
 
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
           const points = historicalData[mmsi] || [];

@@ -722,7 +722,29 @@ function MapPage() {
       <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 20px", backgroundColor: "#f5f5f5", borderBottom: "1px solid #ccc" }}>
         <img src="/logo.png" alt="Logo" style={{ height: "40px" }} />
         <h2 style={{ margin: 0 }}>Saltchuk Marine Tug Tracker</h2>
-        <span style={{ fontSize: "0.9em", color: "#555" }}>Select vessels and click "View Historical" to compare</span>
+        
+        {/* ============ NEW: Nearby Vessels Checkbox on Right ============ */}
+        {mode === "live" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <input
+              type="checkbox"
+              id="nearbyVesselsCheckbox"
+              checked={showNearbyVessels}
+              onChange={(e) => setShowNearbyVessels(e.target.checked)}
+              style={{ cursor: "pointer", width: "16px", height: "16px" }}
+            />
+            <label 
+              htmlFor="nearbyVesselsCheckbox" 
+              style={{ cursor: "pointer", fontSize: "14px", fontWeight: "500", color: "#333" }}
+            >
+              Show Nearby Vessels
+            </label>
+          </div>
+        )}
+        {mode === "historical" && (
+          <span style={{ fontSize: "0.9em", color: "#555" }}>Select vessels and click "View Historical" to compare</span>
+        )}
+        {/* =============================================================== */}
       </header>
 
       {loadingHistory && (
@@ -1016,24 +1038,6 @@ function MapPage() {
                 >
                   Competitors
                 </button>
-                
-                {/* ============ NEW: Nearby Vessels Button ============ */}
-                <button
-                  onClick={() => setShowNearbyVessels(!showNearbyVessels)}
-                  style={{
-                    padding: "4px 10px",
-                    border: "1px solid #ccc",
-                    borderRadius: "4px",
-                    backgroundColor: showNearbyVessels ? "#808080" : "#fff",
-                    color: showNearbyVessels ? "white" : "#808080",
-                    cursor: "pointer",
-                    fontWeight: "bold",
-                    fontSize: "12px"
-                  }}
-                >
-                  Nearby Vessels
-                </button>
-                {/* =================================================== */}
               </div>
             </>
           )}

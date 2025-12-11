@@ -136,6 +136,12 @@ function MapPage() {
   // Cache for historical data
   const historicalCacheRef = useRef({});
   
+  // ============ NEW: Nearby vessels state ============
+  const [showNearbyVessels, setShowNearbyVessels] = useState(false);
+  const [nearbyVessels, setNearbyVessels] = useState([]);
+  const [nearbyHistoricalData, setNearbyHistoricalData] = useState({});
+  // ===================================================
+  
   // SM vessel MMSIs
   const smTugsMMSI = [
     368066590,  // BERING WIND --CITB
@@ -295,6 +301,32 @@ function MapPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // ============ NEW: Fetch nearby vessels ============
+  const fetchNearbyVessels = () => {
+    if (!showNearbyVessels) {
+      setNearbyVessels([]);
+      return;
+    }
+    
+    fetch("https://tug.foss.com/live/nearby")
+      .then(res => res.json())
+      .then(data => {
+        setNearbyVessels(data.data || []);
+      })
+      .catch(err => console.error("Error fetching nearby vessels:", err));
+  };
+
+  useEffect(() => {
+    if (mode === "live" && showNearbyVessels) {
+      fetchNearbyVessels();
+      const interval = setInterval(fetchNearbyVessels, 4 * 60 * 1000);
+      return () => clearInterval(interval);
+    } else {
+      setNearbyVessels([]);
+    }
+  }, [showNearbyVessels, mode]);
+  // ===================================================
 
   const fetchLiveData = () => {
     if (mode === "live") {
@@ -615,6 +647,15 @@ function MapPage() {
     iconSize: [20, 20],
     iconAnchor: [10, 10]
   });
+
+  // ============ NEW: Gray icon for nearby vessels ============
+  const nearbyIcon = (angle) => L.divIcon({
+    className: "ship-icon",
+    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #808080;">➤</div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10]
+  });
+  // ===========================================================
 
   const historicalEndIcon = (angle, vessel) => L.divIcon({
     className: "ship-icon",
@@ -975,6 +1016,24 @@ function MapPage() {
                 >
                   Competitors
                 </button>
+                
+                {/* ============ NEW: Nearby Vessels Button ============ */}
+                <button
+                  onClick={() => setShowNearbyVessels(!showNearbyVessels)}
+                  style={{
+                    padding: "4px 10px",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    backgroundColor: showNearbyVessels ? "#808080" : "#fff",
+                    color: showNearbyVessels ? "white" : "#808080",
+                    cursor: "pointer",
+                    fontWeight: "bold",
+                    fontSize: "12px"
+                  }}
+                >
+                  Nearby Vessels
+                </button>
+                {/* =================================================== */}
               </div>
             </>
           )}
@@ -1039,6 +1098,7 @@ function MapPage() {
           </div>
         )}
 
+        {/* Your tugs */}
         {mode === "live" && vessels.map((v, i) => (
           <Marker
             key={i}
@@ -1061,6 +1121,27 @@ function MapPage() {
             </Tooltip>
           </Marker>
         ))}
+
+        {/* ============ NEW: Nearby vessels ============ */}
+        {mode === "live" && nearbyVessels.map((v, i) => (
+          <Marker
+            key={`nearby-${i}`}
+            position={[v.latitude, v.longitude]}
+            icon={nearbyIcon(v.heading || 0)}
+          >
+            <Tooltip direction="top" offset={[0, -10]}>
+              <b style={{ color: "#808080" }}>{v.name || `MMSI: ${v.mmsi}`}</b><br />
+              MMSI: {v.mmsi}<br />
+              Owner: {v.owner || 'Other'}<br />
+              Speed: {v.speed} kn<br />
+              Heading: {v.heading}°<br />
+              Course: {v.course}°<br />
+              Time: {v.created_date}<br />
+              <span style={{ fontSize: "11px", fontStyle: "italic" }}>Detected by tug: {v.detected_by_tug}</span>
+            </Tooltip>
+          </Marker>
+        ))}
+        {/* ============================================ */}
 
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
           const points = historicalData[mmsi] || [];

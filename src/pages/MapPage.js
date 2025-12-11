@@ -740,7 +740,7 @@ function MapPage() {
             </label>
           </div>
         ) : (
-          <span style={{ fontSize: "0.9em", color: "#555" }}>Historical mode</span>
+          <span style={{ fontSize: "0.9em", color: "#555" }}>Select vessels and click "View Historical" to compare</span>
         )}
         {/* ================================================================== */}
       </header>

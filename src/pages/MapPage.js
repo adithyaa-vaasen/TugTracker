@@ -141,6 +141,26 @@ function MapPage() {
   const [nearbyVessels, setNearbyVessels] = useState([]);
   // ===================================================================
   
+  // ============ NEW: Terms and Conditions Modal ============
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  
+  // Check if user has accepted terms (cache for 24 hours)
+  useEffect(() => {
+    const termsAccepted = localStorage.getItem('termsAcceptedTimestamp');
+    const now = new Date().getTime();
+    const oneDayInMs = 24 * 60 * 60 * 1000;
+    
+    if (!termsAccepted || (now - parseInt(termsAccepted)) > oneDayInMs) {
+      setShowTermsModal(true);
+    }
+  }, []);
+  
+  const handleAcceptTerms = () => {
+    localStorage.setItem('termsAcceptedTimestamp', new Date().getTime().toString());
+    setShowTermsModal(false);
+  };
+  // ========================================================
+  
   // SM vessel MMSIs
   const smTugsMMSI = [
     368066590,  // BERING WIND --CITB
@@ -697,6 +717,98 @@ function MapPage() {
 
   return (
     <div>
+      {/* ============ NEW: Terms and Conditions Modal ============ */}
+      {showTermsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '8px',
+            maxWidth: '700px',
+            width: '100%',
+            maxHeight: '80vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid #e0e0e0'
+            }}>
+              <h2 style={{ margin: 0, fontSize: '24px', fontWeight: '600', color: '#333' }}>
+                Terms and Conditions
+              </h2>
+            </div>
+            
+            {/* Content */}
+            <div style={{
+              padding: '24px',
+              overflowY: 'auto',
+              flex: 1,
+              fontSize: '15px',
+              lineHeight: '1.6',
+              color: '#444'
+            }}>
+              <p style={{ marginTop: 0 }}>
+                The data supporting Saltchuk Marine's Tug Tracker is provided pursuant to a limited license and is subject to the Spire Data Terms and Conditions available{' '}
+                <a 
+                  href="/Spire_Data_Terms_and_Conditions.pdf" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  style={{ color: '#0066cc', textDecoration: 'underline' }}
+                >
+                  here
+                </a>.
+              </p>
+              
+              <p>
+                By proceeding, I acknowledge that I have read, understand, and agree to comply with all applicable license terms and conditions. I further acknowledge that I will use the licensed data solely for authorized internal purposes, that I will not disclose, distribute, or otherwise make the data available to any external parties or end customers, and that I will not use the data in any manner that is unlawful or inconsistent with the applicable license or the Spire Data Terms and Conditions.
+              </p>
+            </div>
+            
+            {/* Footer */}
+            <div style={{
+              padding: '20px 24px',
+              borderTop: '1px solid #e0e0e0',
+              display: 'flex',
+              justifyContent: 'flex-end'
+            }}>
+              <button
+                onClick={handleAcceptTerms}
+                style={{
+                  padding: '12px 32px',
+                  backgroundColor: '#4CA61C',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: '600',
+                  cursor: 'pointer',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#3d8516'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#4CA61C'}
+              >
+                I Agree
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* ======================================================== */}
+      
       <style>
         {`
           .leaflet-container .leaflet-control-zoom {

@@ -422,9 +422,12 @@ function MapPage() {
         cutoffStart = new Date(dateRangeFrom + "T00:00:00");
         cutoffEnd = new Date(dateRangeTo + "T23:59:59.999");
       } else {
-        cutoffStart = new Date(Date.now() - (historyRange * 24 * 60 * 60 * 1000));
-        cutoffEnd = new Date();
-      }
+          const cutoffDate = new Date();
+          cutoffDate.setDate(cutoffDate.getDate() - historyRange);
+          cutoffDate.setHours(0, 0, 0, 0);
+          cutoffStart = cutoffDate;
+          cutoffEnd = new Date();
+        }
 
       const newData = {};
       Object.keys(fullHistoricalData).forEach(mmsi => {

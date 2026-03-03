@@ -161,6 +161,12 @@ function MapPage() {
     setShowTermsModal(false);
   };
   // ========================================================
+
+  // ============ NEW: Date range filter state ============
+  const [dateRangeFrom, setDateRangeFrom] = useState("");
+  const [dateRangeTo, setDateRangeTo] = useState("");
+  const [dateRangeError, setDateRangeError] = useState("");
+  // =====================================================
   
   // SM vessel MMSIs
   const smTugsMMSI = [
@@ -409,11 +415,27 @@ function MapPage() {
 
   useEffect(() => {
     if (mode === "historical" && Object.keys(fullHistoricalData).length > 0) {
-      const cutoff = new Date(Date.now() - (historyRange * 24 * 60 * 60 * 1000) - (6 * 60 * 60 * 1000));
+      // ============ MODIFIED: Use custom date range if set, otherwise fall back to range days ============
+      let cutoffStart, cutoffEnd;
+
+      if (historyRange !== 1 && dateRangeFrom && dateRangeTo) {
+        cutoffStart = new Date(dateRangeFrom);
+        cutoffEnd = new Date(dateRangeTo);
+        cutoffEnd.setHours(23, 59, 59, 999);
+      } else {
+        cutoffStart = new Date(Date.now() - (historyRange * 24 * 60 * 60 * 1000) - (6 * 60 * 60 * 1000));
+        cutoffEnd = new Date();
+      }
+
       const newData = {};
       Object.keys(fullHistoricalData).forEach(mmsi => {
-        newData[mmsi] = fullHistoricalData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
+        newData[mmsi] = fullHistoricalData[mmsi].filter(p => {
+          const d = new Date(p.created_date);
+          return d >= cutoffStart && d <= cutoffEnd;
+        });
       });
+      // ================================================================================================
+
       setHistoricalData(newData);
       setSliderIndex(0);
       
@@ -428,7 +450,7 @@ function MapPage() {
         }
       }, 200);
     }
-  }, [historyRange, fullHistoricalData, mode]);
+  }, [historyRange, fullHistoricalData, mode, dateRangeFrom, dateRangeTo]);
 
   const isSMTug = (mmsi) => smTugsMMSI.includes(mmsi);
 
@@ -654,6 +676,40 @@ function MapPage() {
         setLoadingHistory(false);
       });
   };
+
+  // ============ NEW: Helpers for date range picker ============
+  const getMinDate = () => {
+    const d = new Date(Date.now() - historyRange * 24 * 60 * 60 * 1000);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const getMaxDate = () => {
+    return new Date().toISOString().slice(0, 10);
+  };
+
+  const handleDateRangeFrom = (value) => {
+    setDateRangeError("");
+    setDateRangeFrom(value);
+    if (dateRangeTo && value > dateRangeTo) {
+      setDateRangeTo("");
+    }
+  };
+
+  const handleDateRangeTo = (value) => {
+    setDateRangeError("");
+    if (dateRangeFrom && value < dateRangeFrom) {
+      setDateRangeError("'To' date cannot be before 'From' date.");
+      return;
+    }
+    setDateRangeTo(value);
+  };
+
+  const handleClearDateRange = () => {
+    setDateRangeFrom("");
+    setDateRangeTo("");
+    setDateRangeError("");
+  };
+  // ===========================================================
 
   const currentCenter = mode === "live"
     ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])
@@ -895,6 +951,7 @@ function MapPage() {
                 setFullHistoricalData({});
                 setSliderIndex(0);
                 setIsPlaying(false);
+                handleClearDateRange();
               }}>
                 🔄 Back to Live
               </button>
@@ -1156,23 +1213,106 @@ function MapPage() {
         </div>
 
         {mode === "historical" && (
-          <div style={{ display: "flex", gap: "10px" }}>
-            {[1, 7, 30].map(days => (
-              <button
-                key={days}
-                style={{
-                  padding: "6px 12px",
-                  backgroundColor: historyRange === days ? "#007bff" : "#eee",
-                  color: historyRange === days ? "white" : "black",
-                  border: "1px solid #ccc",
-                  borderRadius: "4px",
-                  cursor: "pointer"
-                }}
-                onClick={() => setHistoryRange(days)}
-              >
-                {days === 1 ? "1 Day" : days=== 7 ? "7 Days" : "30 Days"}
-              </button>
-            ))}
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
+            {/* Range selector buttons */}
+            <div style={{ display: "flex", gap: "10px" }}>
+              {[1, 7, 30].map(days => (
+                <button
+                  key={days}
+                  style={{
+                    padding: "6px 12px",
+                    backgroundColor: historyRange === days ? "#007bff" : "#eee",
+                    color: historyRange === days ? "white" : "black",
+                    border: "1px solid #ccc",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                  onClick={() => {
+                    handleClearDateRange();
+                    setHistoryRange(days);
+                  }}
+                >
+                  {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
+                </button>
+              ))}
+            </div>
+
+            {/* ============ NEW: Date range picker for 7-day and 30-day ============ */}
+            {historyRange !== 1 && (
+              <div style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                backgroundColor: "#f0f4ff",
+                border: "1px solid #c5d5f5",
+                borderRadius: "6px",
+                padding: "6px 12px",
+                fontSize: "13px"
+              }}>
+                <span style={{ fontWeight: "600", color: "#444", whiteSpace: "nowrap" }}>Filter range:</span>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "4px", color: "#555" }}>
+                  From
+                  <input
+                    type="date"
+                    value={dateRangeFrom}
+                    min={getMinDate()}
+                    max={dateRangeTo || getMaxDate()}
+                    onChange={(e) => handleDateRangeFrom(e.target.value)}
+                    style={{
+                      padding: "3px 6px",
+                      border: "1px solid #bbb",
+                      borderRadius: "4px",
+                      fontSize: "13px",
+                      cursor: "pointer"
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", alignItems: "center", gap: "4px", color: "#555" }}>
+                  To
+                  <input
+                    type="date"
+                    value={dateRangeTo}
+                    min={dateRangeFrom || getMinDate()}
+                    max={getMaxDate()}
+                    onChange={(e) => handleDateRangeTo(e.target.value)}
+                    style={{
+                      padding: "3px 6px",
+                      border: "1px solid #bbb",
+                      borderRadius: "4px",
+                      fontSize: "13px",
+                      cursor: "pointer"
+                    }}
+                  />
+                </label>
+
+                {(dateRangeFrom || dateRangeTo) && (
+                  <button
+                    onClick={handleClearDateRange}
+                    title="Clear date filter"
+                    style={{
+                      padding: "3px 8px",
+                      border: "1px solid #ccc",
+                      borderRadius: "4px",
+                      backgroundColor: "#fff",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      color: "#666"
+                    }}
+                  >
+                    ✕ Clear
+                  </button>
+                )}
+
+                {dateRangeError && (
+                  <span style={{ color: "#c0392b", fontSize: "12px", fontWeight: "500" }}>
+                    ⚠ {dateRangeError}
+                  </span>
+                )}
+              </div>
+            )}
+            {/* ===================================================================== */}
           </div>
         )}
       </div>

@@ -625,7 +625,10 @@ function MapPage() {
     
     // Fetch data from server
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const fullStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 19).replace("T", " ");
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 30);
+    cutoffDate.setHours(0, 0, 0, 0);
+    const fullStart = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
     
     const mmsiString = mmsiList.join(',');
     

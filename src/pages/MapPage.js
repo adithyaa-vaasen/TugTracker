@@ -419,9 +419,8 @@ function MapPage() {
       let cutoffStart, cutoffEnd;
 
       if (historyRange !== 1 && dateRangeFrom && dateRangeTo) {
-        cutoffStart = new Date(dateRangeFrom);
-        cutoffEnd = new Date(dateRangeTo);
-        cutoffEnd.setHours(23, 59, 59, 999);
+        cutoffStart = new Date(dateRangeFrom + "T00:00:00");
+        cutoffEnd = new Date(dateRangeTo + "T23:59:59.999");
       } else {
         cutoffStart = new Date(Date.now() - (historyRange * 24 * 60 * 60 * 1000));
         cutoffEnd = new Date();

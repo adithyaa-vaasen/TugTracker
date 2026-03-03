@@ -17,6 +17,7 @@ const getColorRGB = (colorName) => {
   const colors = {
     green: 'rgb(0, 200, 0)',
     yellow: 'rgb(255, 215, 0)',
+    orange: 'rgb(255, 153, 0)',
     red: 'rgb(255, 0, 0)'
   };
   return colors[colorName] || colorName;
@@ -554,8 +555,9 @@ function MapPage() {
   };
 
   const getColor = (speed) => {
-    if (speed <= 8.5) return "green";
-    if (speed <= 9.5) return "yellow";
+    if (speed <= 8) return "green";
+    if (speed <= 9) return "yellow";
+    if (speed <= 10) return "orange";
     return "red";
   };
 
@@ -1198,15 +1200,19 @@ function MapPage() {
             <div style={{ display: "flex", flexDirection: "column", gap: "6px", fontSize: "13px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "30px", height: "4px", backgroundColor: "green", borderRadius: "2px" }}></div>
-                <span>≤ 8.5 knots</span>
+                <span>≤ 8 knots</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "30px", height: "4px", backgroundColor: "yellow", borderRadius: "2px" }}></div>
-                <span>8.5 - 9.5 knots</span>
+                <span>8 - 9 knots</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ width: "30px", height: "4px", backgroundColor: "orange", borderRadius: "2px" }}></div>
+                <span>9 - 10 knots</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <div style={{ width: "30px", height: "4px", backgroundColor: "red", borderRadius: "2px" }}></div>
-                <span>&gt; 9.5 knots</span>
+                <span>&gt; 10 knots</span>
               </div>
             </div>
           </div>

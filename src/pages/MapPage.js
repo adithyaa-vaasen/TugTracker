@@ -625,11 +625,10 @@ function MapPage() {
     
     // Fetch data from server
     const now = new Date().toISOString().slice(0, 19).replace("T", " ");
-    const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - 30);
-    cutoffDate.setHours(0, 0, 0, 0);
-    const fullStart = cutoffDate.toISOString().slice(0, 19).replace("T", " ");
-    
+    const d = new Date();
+    d.setDate(d.getDate() - 30);
+    d.setHours(0, 0, 0, 0);
+    const fullStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} 00:00:00`;
     const mmsiString = mmsiList.join(',');
     
     fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)

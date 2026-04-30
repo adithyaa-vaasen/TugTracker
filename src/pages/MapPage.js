@@ -67,7 +67,7 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
         // Draw each vessel's path
         Object.keys(historicalData).forEach(mmsi => {
           const points = historicalData[mmsi] || [];
-          const visiblePoints = points.slice(0, sliderIndex + 1);
+          const visiblePoints = fixAntimeridian(points.slice(0, sliderIndex + 1));
           
           if (visiblePoints.length < 2) return;
           
@@ -107,6 +107,33 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
     };
   }, [map, historicalData, sliderIndex, getColor]);
 };
+
+
+
+// Helper function near your other helpers
+const fixAntimeridian = (points) => {
+  if (points.length < 2) return points;
+  const fixed = [{ ...points[0] }];
+  
+  for (let i = 1; i < points.length; i++) {
+    const prev = fixed[fixed.length - 1];
+    const curr = { ...points[i] };
+    
+    let lngDiff = curr.longitude - prev.longitude;
+    
+    // If the longitude jump is > 180°, it crossed the antimeridian
+    if (lngDiff > 180) {
+      curr.longitude -= 360;
+    } else if (lngDiff < -180) {
+      curr.longitude += 360;
+    }
+    
+    fixed.push(curr);
+  }
+  
+  return fixed;
+};
+
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -1409,8 +1436,8 @@ function MapPage() {
 
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
           const points = historicalData[mmsi] || [];
-          const visiblePoints = points.slice(0, sliderIndex + 1);
-          
+          const visiblePoints = fixAntimeridian(points.slice(0, sliderIndex + 1));
+
           if (visiblePoints.length === 0) return null;
           
           const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };

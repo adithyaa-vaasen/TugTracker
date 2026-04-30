@@ -135,18 +135,7 @@ const fixAntimeridian = (points) => {
 };
 
 
-const fitBoundsNormalized = (map, points, padding = [50, 50]) => {
-  if (!points.length) return;
-  const TARGET_CENTER_LNG = -150; // Pacific-centered (covers US West Coast, Hawaii, Alaska, Guam)
-  const normalized = points.map(p => {
-    let lng = p.longitude;
-    while (lng - TARGET_CENTER_LNG > 180) lng -= 360;
-    while (TARGET_CENTER_LNG - lng > 180) lng += 360;
-    return [p.latitude, lng];
-  });
-  const bounds = L.latLngBounds(normalized);
-  map.fitBounds(bounds, { padding });
-};
+
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -487,7 +476,7 @@ function MapPage() {
           const allPoints = Object.values(newData).flat();
           if (allPoints.length > 1) {
             const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
-            fitBoundsNormalized(mapRef.current, allPoints, [30, 30]);
+            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
           }
         }
       }, 200);
@@ -545,7 +534,7 @@ function MapPage() {
         if (vesselsToShow.length > 0 && mapRef.current && groupFilter !== "all") {
           setTimeout(() => {
             const bounds = L.latLngBounds(vesselsToShow.map(v => [v.latitude, v.longitude]));
-            fitBoundsNormalized(mapRef.current, vesselsToShow);
+            mapRef.current.fitBounds(bounds, { padding: [50, 50] });
           }, 100);
         }
       } else {
@@ -557,7 +546,7 @@ function MapPage() {
         if (filtered.length > 0 && mapRef.current) {
           setTimeout(() => {
             const bounds = L.latLngBounds(filtered.map(v => [v.latitude, v.longitude]));
-            fitBoundsNormalized(mapRef.current, filtered);
+            mapRef.current.fitBounds(bounds, { padding: [50, 50] });
           }, 100);
         }
       }
@@ -655,7 +644,7 @@ function MapPage() {
           const allPoints = Object.values(slicedData).flat();
           if (allPoints.length > 1) {
             const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
-            fitBoundsNormalized(mapRef.current, allPoints, [30, 30]);
+            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
           }
         }
       }, 200);
@@ -710,7 +699,7 @@ function MapPage() {
             const allPoints = Object.values(slicedData).flat();
             if (allPoints.length > 1) {
               const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
-              fitBoundsNormalized(mapRef.current, allPoints, [30, 30]);
+              mapRef.current.fitBounds(bounds, { padding: [30, 30] });
             }
           }
         }, 200);

@@ -113,7 +113,7 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
 // Helper function near your other helpers
 const fixAntimeridian = (points) => {
   if (points.length < 2) return points;
-  const fixed = [{ ...points[0] }];
+  const fixed = [{ ...points[0], longitude: normalizeLng(points[0].longitude) }];
   
   for (let i = 1; i < points.length; i++) {
     const prev = fixed[fixed.length - 1];

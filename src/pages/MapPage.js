@@ -113,24 +113,24 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
 // Helper function near your other helpers
 const fixAntimeridian = (points) => {
   if (points.length < 2) return points;
-  const fixed = [{ ...points[0], longitude: normalizeLng(points[0].longitude) }];
+  
+  // Normalize first point: if positive longitude, shift to negative equivalent
+  const firstLng = points[0].longitude > 0 
+    ? points[0].longitude - 360 
+    : points[0].longitude;
+    
+  const fixed = [{ ...points[0], longitude: firstLng }];
   
   for (let i = 1; i < points.length; i++) {
     const prev = fixed[fixed.length - 1];
     const curr = { ...points[i] };
     
     let lngDiff = curr.longitude - prev.longitude;
-    
-    // If the longitude jump is > 180°, it crossed the antimeridian
-    if (lngDiff > 180) {
-      curr.longitude -= 360;
-    } else if (lngDiff < -180) {
-      curr.longitude += 360;
-    }
+    if (lngDiff > 180) curr.longitude -= 360;
+    else if (lngDiff < -180) curr.longitude += 360;
     
     fixed.push(curr);
   }
-  
   return fixed;
 };
 
@@ -537,7 +537,7 @@ function MapPage() {
         // Auto-fit map to filtered vessels when group filter changes
         if (vesselsToShow.length > 0 && mapRef.current && groupFilter !== "all") {
           setTimeout(() => {
-            const bounds = L.latLngBounds(vesselsToShow.map(v => [v.latitude, v.longitude]));
+            const bounds = L.latLngBounds(vesselsToShow.map(v => [v.latitude, normalizeLng(v.longitude)]));
             mapRef.current.fitBounds(bounds, { padding: [50, 50] });
           }, 100);
         }
@@ -549,7 +549,7 @@ function MapPage() {
         
         if (filtered.length > 0 && mapRef.current) {
           setTimeout(() => {
-            const bounds = L.latLngBounds(filtered.map(v => [v.latitude, v.longitude]));
+            const bounds = L.latLngBounds(filtered.map(v => [v.latitude, normalizeLng(v.longitude)]));
             mapRef.current.fitBounds(bounds, { padding: [50, 50] });
           }, 100);
         }

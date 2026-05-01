@@ -1350,7 +1350,7 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false} maxBounds={[[-90, -180], [90, 180]]}  maxBoundsViscosity={1.0}>
         <ZoomControl position="topright" />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"

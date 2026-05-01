@@ -135,6 +135,10 @@ const fixAntimeridian = (points) => {
 };
 
 
+const normalizeLng = (lng) => {
+  if (lng > 0) return lng - 360;
+  return lng;
+};
 
 // ============ ADDITIONS END HERE ============
 
@@ -1350,7 +1354,7 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false} maxBounds={[[-90, -180], [90, 180]]}  maxBoundsViscosity={1.0}>
+      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
@@ -1395,7 +1399,7 @@ function MapPage() {
         {mode === "live" && vessels.map((v, i) => (
           <Marker
             key={i}
-            position={[v.latitude, v.longitude]}
+            position={[v.latitude, normalizeLng(v.longitude)]}
             icon={rotatedIcon(v.heading || 0, v)}
             eventHandlers={{
               click: () => {

@@ -479,7 +479,7 @@ function MapPage() {
         if (mapRef.current) {
           const allPoints = Object.values(newData).flat();
           if (allPoints.length > 1) {
-            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, normalizeLng(p.longitude)]));  // ← after
             mapRef.current.fitBounds(bounds, { padding: [30, 30] });
           }
         }
@@ -647,7 +647,7 @@ function MapPage() {
         if (mapRef.current) {
           const allPoints = Object.values(slicedData).flat();
           if (allPoints.length > 1) {
-            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, normalizeLng(p.longitude)]));  // ← after
             mapRef.current.fitBounds(bounds, { padding: [30, 30] });
           }
         }
@@ -702,7 +702,7 @@ function MapPage() {
           if (mapRef.current) {
             const allPoints = Object.values(slicedData).flat();
             if (allPoints.length > 1) {
-              const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, p.longitude]));
+              const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, normalizeLng(p.longitude)]));  // ← after
               mapRef.current.fitBounds(bounds, { padding: [30, 30] });
             }
           }

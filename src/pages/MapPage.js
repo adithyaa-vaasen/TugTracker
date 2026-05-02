@@ -749,10 +749,10 @@ function MapPage() {
   // ===========================================================
 
   const currentCenter = mode === "live"
-    ? (vessels[0] ? [vessels[0].latitude, vessels[0].longitude] : [36.5, -122])
+    ? (vessels[0] ? [vessels[0].latitude, normalizeLng(vessels[0].longitude)] : [36.5, -122])       
     : (() => {
         const allPoints = Object.values(historicalData).flat();
-        return allPoints[0] ? [allPoints[0].latitude, allPoints[0].longitude] : [36.5, -122];
+        return allPoints[0] ? [allPoints[0].latitude, normalizeLng(allPoints[0].longitude)] : [36.5, -122];
       })();
 
   const rotatedIcon = (angle, vessel) => L.divIcon({

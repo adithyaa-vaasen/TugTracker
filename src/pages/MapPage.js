@@ -280,6 +280,7 @@ function MapPage() {
     368010330,  // LILLIAN FOSS --SoCal
     367017440,  // PIPER INNESS --SoCal
     367566980,   // WYNEMA SPIRIT --CSR  Foss charter from Brusco
+    368455080, // LINDY HDT Foss Charter
   ];
   
   // SM vessel groups for different colors

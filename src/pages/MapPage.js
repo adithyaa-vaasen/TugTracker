@@ -5,7 +5,9 @@ import {
   Marker,
   Polyline,
   Tooltip,
-  ZoomControl
+  ZoomControl,
+  Polygon,
+  useMapEvents
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -140,6 +142,48 @@ const normalizeLng = (lng) => {
   return lng;
 };
 
+// ---- Ship hull rendering ----
+const SHIP_ZOOM = 13;        // at/above this zoom, draw hull polygons instead of arrows
+const SHIP_SCALE = 1.5;      // mild exaggeration so small tugs stay legible
+const M_PER_DEG_LAT = 111320;
+
+// Prefer true heading (hull orientation); fall back to course; then 0.
+// Guards the AIS "not available" sentinel (511) and other bad values.
+const hdgOrCourse = (heading, course) => {
+  const h = Number(heading);
+  if (Number.isFinite(h) && h >= 0 && h < 360) return h;
+  const c = Number(course);
+  if (Number.isFinite(c) && c >= 0 && c < 360) return c;
+  return 0;
+};
+
+// dims = { bow, stern, port, starboard } in meters. lat/lon must already be in
+// display space (live: normalizeLng applied; historical: fixAntimeridian applied).
+const shipPolygonLatLngs = (lat, lon, heading, dims, scale = SHIP_SCALE) => {
+  const { bow, stern, port, starboard } = dims;
+  const hdg = ((heading || 0) * Math.PI) / 180;       // 0 = N, clockwise
+  const shoulder = bow - (bow + stern) * 0.3;          // pointed-bow break
+  const local = [                                      // [forward(+bow), starboard(+)]
+    [bow, 0],
+    [shoulder, starboard],
+    [-stern, starboard],
+    [-stern, -port],
+    [shoulder, -port],
+    [bow, 0],
+  ];
+  const cosLat = Math.cos((lat * Math.PI) / 180) || 1e-6;
+  return local.map(([fwd, side]) => {
+    const east = (fwd * Math.sin(hdg) + side * Math.cos(hdg)) * scale;
+    const north = (fwd * Math.cos(hdg) - side * Math.sin(hdg)) * scale;
+    return [lat + north / M_PER_DEG_LAT, lon + east / (M_PER_DEG_LAT * cosLat)];
+  });
+};
+
+// Reports the live zoom level so we can switch arrow <-> hull
+function ZoomTracker({ onZoom }) {
+  const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
+  return null;
+}
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -166,6 +210,17 @@ function MapPage() {
   const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
+  
+  const [zoom, setZoom] = useState(6);
+  const [dimsByMmsi, setDimsByMmsi] = useState({});
+
+  // Fetch hull dimensions once, cache for the session
+  useEffect(() => {
+    fetch("https://tug.foss.com/vessel-dimensions")
+      .then((res) => res.json())
+      .then((data) => setDimsByMmsi(data.dimensions || {}))
+      .catch((err) => console.error("Error fetching vessel dimensions:", err));
+  }, []);
   
   // Cache for historical data
   const historicalCacheRef = useRef({});
@@ -1357,6 +1412,7 @@ function MapPage() {
 
       <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
+        <ZoomTracker onZoom={setZoom} />
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
@@ -1396,20 +1452,16 @@ function MapPage() {
           </div>
         )}
 
-        {/* Your tugs */}
-        {mode === "live" && vessels.map((v, i) => (
-          <Marker
-            key={i}
-            position={[v.latitude, normalizeLng(v.longitude)]}
-            icon={rotatedIcon(v.heading || 0, v)}
-            eventHandlers={{
-              click: () => {
-                fetchMultipleHistorical([v.mmsi], 1);
-              }
-            }}
-          >
+        {/* Your tugs — hull when zoomed in & dims known, else arrow */}
+        {mode === "live" && vessels.map((v, i) => {
+          const dims = dimsByMmsi[String(v.mmsi)];
+          const showHull = zoom >= SHIP_ZOOM && dims;
+          const lat = v.latitude;
+          const lon = normalizeLng(v.longitude);
+          const color = getVesselColor(v);
+          const tip = (
             <Tooltip direction="top" offset={[0, -10]}>
-              <b style={{ color: getVesselColor(v) }}>{v.name}</b><br />
+              <b style={{ color }}>{v.name}</b><br />
               MMSI: {v.mmsi}<br />
               Owner: {v.owner || 'Other'}<br />
               Speed: {v.speed} kn<br />
@@ -1417,8 +1469,27 @@ function MapPage() {
               Course: {v.course}°<br />
               Time: {v.created_date}
             </Tooltip>
-          </Marker>
-        ))}
+          );
+          return showHull ? (
+            <Polygon
+              key={`hull-${i}`}
+              positions={shipPolygonLatLngs(lat, lon, hdgOrCourse(v.heading, v.course), dims)}
+              pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1.5 }}
+              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi], 1) }}
+            >
+              {tip}
+            </Polygon>
+          ) : (
+            <Marker
+              key={`arrow-${i}`}
+              position={[lat, lon]}
+              icon={rotatedIcon(v.heading || 0, v)}
+              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi], 1) }}
+            >
+              {tip}
+            </Marker>
+          );
+        })}
 
         {/* ============ NEW: Nearby vessels ============ */}
         {mode === "live" && nearbyVessels.map((v, i) => (
@@ -1482,20 +1553,35 @@ function MapPage() {
                 </Marker>
               )}
               
-              {visiblePoints[visiblePoints.length - 1] && (
-                <Marker
-                  position={[visiblePoints[visiblePoints.length - 1].latitude, visiblePoints[visiblePoints.length - 1].longitude]}
-                  icon={historicalEndIcon(visiblePoints[visiblePoints.length - 1].heading || 0, vesselInfo)}
+              {visiblePoints[visiblePoints.length - 1] && (() => {
+              const last = visiblePoints[visiblePoints.length - 1];
+              const dims = dimsByMmsi[String(mmsi)];
+              const color = getVesselColor(vesselInfo);
+              const endTip = (
+                <Tooltip direction="top" offset={[0, -10]}>
+                  <b style={{ color }}>{last.name || `MMSI: ${mmsi}`}</b><br />
+                  Owner: {last.owner || 'Other'}<br />
+                  Current Time: {last.created_date}<br />
+                  Speed: {last.speed} kn<br />
+                  Heading: {last.heading}°
+                </Tooltip>
+              );
+              return (zoom >= SHIP_ZOOM && dims) ? (
+                <Polygon
+                  positions={shipPolygonLatLngs(last.latitude, last.longitude, hdgOrCourse(last.heading, last.course), dims)}
+                  pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1.5 }}
                 >
-                  <Tooltip direction="top" offset={[0, -10]}>
-                    <b style={{ color: getVesselColor(vesselInfo) }}>{visiblePoints[visiblePoints.length - 1].name || `MMSI: ${mmsi}`}</b><br />
-                    Owner: {visiblePoints[visiblePoints.length - 1].owner || 'Other'}<br />
-                    Current Time: {visiblePoints[visiblePoints.length - 1].created_date}<br />
-                    Speed: {visiblePoints[visiblePoints.length - 1].speed} kn<br />
-                    Heading: {visiblePoints[visiblePoints.length - 1].heading}°
-                  </Tooltip>
+                  {endTip}
+                </Polygon>
+              ) : (
+                <Marker
+                  position={[last.latitude, last.longitude]}
+                  icon={historicalEndIcon(last.heading || 0, vesselInfo)}
+                >
+                  {endTip}
                 </Marker>
-              )}
+              );
+            })()}
             </React.Fragment>
           );
         })}

@@ -7,14 +7,11 @@ import {
   Tooltip,
   ZoomControl,
   Polygon,
-  useMapEvents,
-  useMap
+  useMapEvents
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
-import maplibregl from "maplibre-gl";
-import "maplibre-gl/dist/maplibre-gl.css";
 
 // ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
@@ -188,32 +185,11 @@ function ZoomTracker({ onZoom }) {
   return null;
 }
 
-// ---- VectorCharts nautical layer ----
-const VECTORCHARTS_TOKEN =
-  process.env.REACT_APP_VECTORCHARTS_TOKEN || "6d2c858e815b4fa3a36c675931bb6406";
-const VECTORCHARTS_STYLE =
-  `https://api.vectorcharts.com/api/v1/styles/base.json?token=${VECTORCHARTS_TOKEN}`;
-
-// Renders a MapLibre GL vector style as a Leaflet layer (react-leaflet wrapper
-// around the vanilla L.maplibreGL plugin). The plugin needs maplibregl on the
-// global scope BEFORE it loads, so we set it, then dynamically import the plugin.
-function VectorChartsLayer({ styleUrl }) {
-  const map = useMap();
-  useEffect(() => {
-    let layer;
-    let cancelled = false;
-    window.maplibregl = maplibregl;                 // plugin reads this global
-    import("@maplibre/maplibre-gl-leaflet").then(() => {
-      if (cancelled || !map) return;
-      layer = L.maplibreGL({ style: styleUrl }).addTo(map);
-    });
-    return () => {
-      cancelled = true;
-      if (layer) map.removeLayer(layer);
-    };
-  }, [map, styleUrl]);
-  return null;
-}
+// ---- NOAA nautical chart layer ----
+// NOAA Chart Display Service (ENC data, traditional paper-chart symbology).
+// Note: tile order is {z}/{y}/{x} (NOAA's WMTS convention) — not the usual x/y.
+const NOAA_CHART_URL =
+  "https://gis.charttools.noaa.gov/arcgis/rest/services/MarineChart_Services/NOAACharts/MapServer/WMTS/tile/1.0.0/MarineChart_Services_NOAACharts/default/GoogleMapsCompatible/{z}/{y}/{x}.png";
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -1449,7 +1425,12 @@ function MapPage() {
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
         {baseLayer === "nautical" && (
-          <VectorChartsLayer styleUrl={VECTORCHARTS_STYLE} />
+          <TileLayer
+            url={NOAA_CHART_URL}
+            attribution='Chart data &copy; <a href="https://nauticalcharts.noaa.gov">NOAA Office of Coast Survey</a>'
+            maxNativeZoom={16}
+            maxZoom={18}
+          />
         )}
 
         {/* Base layer switcher */}

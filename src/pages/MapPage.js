@@ -185,11 +185,10 @@ function ZoomTracker({ onZoom }) {
   return null;
 }
 
-// ---- NOAA nautical chart layer ----
-// NOAA Chart Display Service (ENC data, traditional paper-chart symbology).
-// Note: tile order is {z}/{y}/{x} (NOAA's WMTS convention) — not the usual x/y.
-const NOAA_CHART_URL =
-  "https://gis.charttools.noaa.gov/arcgis/rest/services/MarineChart_Services/NOAACharts/MapServer/WMTS/tile/1.0.0/MarineChart_Services_NOAACharts/default/GoogleMapsCompatible/{z}/{y}/{x}.png";
+// ---- OpenSeaMap nautical overlay ----
+// Free, keyless seamark overlay (buoys, lights, beacons, harbors, channels)
+// drawn on top of the base map. Standard {z}/{x}/{y} PNG tiles — no ORB issues.
+const OPENSEAMAP_URL = "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -1426,9 +1425,8 @@ function MapPage() {
         />
         {baseLayer === "nautical" && (
           <TileLayer
-            url={NOAA_CHART_URL}
-            attribution='Chart data &copy; <a href="https://nauticalcharts.noaa.gov">NOAA Office of Coast Survey</a>'
-            maxNativeZoom={16}
+            url={OPENSEAMAP_URL}
+            attribution='Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a> contributors'
             maxZoom={18}
           />
         )}

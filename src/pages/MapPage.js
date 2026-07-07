@@ -7,11 +7,14 @@ import {
   Tooltip,
   ZoomControl,
   Polygon,
-  useMapEvents
+  useMapEvents,
+  useMap
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 
 // ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
@@ -184,6 +187,33 @@ function ZoomTracker({ onZoom }) {
   const map = useMapEvents({ zoomend: () => onZoom(map.getZoom()) });
   return null;
 }
+
+// ---- VectorCharts nautical layer ----
+const VECTORCHARTS_TOKEN =
+  process.env.REACT_APP_VECTORCHARTS_TOKEN || "6d2c858e815b4fa3a36c675931bb6406";
+const VECTORCHARTS_STYLE =
+  `https://api.vectorcharts.com/api/v1/styles/base.json?token=${VECTORCHARTS_TOKEN}`;
+
+// Renders a MapLibre GL vector style as a Leaflet layer (react-leaflet wrapper
+// around the vanilla L.maplibreGL plugin). The plugin needs maplibregl on the
+// global scope BEFORE it loads, so we set it, then dynamically import the plugin.
+function VectorChartsLayer({ styleUrl }) {
+  const map = useMap();
+  useEffect(() => {
+    let layer;
+    let cancelled = false;
+    window.maplibregl = maplibregl;                 // plugin reads this global
+    import("@maplibre/maplibre-gl-leaflet").then(() => {
+      if (cancelled || !map) return;
+      layer = L.maplibreGL({ style: styleUrl }).addTo(map);
+    });
+    return () => {
+      cancelled = true;
+      if (layer) map.removeLayer(layer);
+    };
+  }, [map, styleUrl]);
+  return null;
+}
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -213,6 +243,7 @@ function MapPage() {
   
   const [zoom, setZoom] = useState(6);
   const [dimsByMmsi, setDimsByMmsi] = useState({});
+  const [baseLayer, setBaseLayer] = useState("default");  // "default" | "nautical"
 
   // Fetch hull dimensions once, cache for the session
   useEffect(() => {
@@ -1417,6 +1448,54 @@ function MapPage() {
           url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
+        {baseLayer === "nautical" && (
+          <VectorChartsLayer styleUrl={VECTORCHARTS_STYLE} />
+        )}
+
+        {/* Base layer switcher */}
+        <div
+          onMouseDown={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+          style={{
+            position: "absolute",
+            top: "10px",
+            left: "10px",
+            zIndex: 1000,
+            display: "flex",
+            borderRadius: "6px",
+            overflow: "hidden",
+            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
+            border: "1px solid #ccc",
+            fontSize: "13px",
+            fontWeight: 600,
+          }}
+        >
+          <button
+            onClick={() => setBaseLayer("default")}
+            style={{
+              padding: "6px 12px",
+              border: "none",
+              cursor: "pointer",
+              backgroundColor: baseLayer === "default" ? "#12506b" : "#fff",
+              color: baseLayer === "default" ? "#fff" : "#333",
+            }}
+          >
+            Default
+          </button>
+          <button
+            onClick={() => setBaseLayer("nautical")}
+            style={{
+              padding: "6px 12px",
+              border: "none",
+              borderLeft: "1px solid #ccc",
+              cursor: "pointer",
+              backgroundColor: baseLayer === "nautical" ? "#12506b" : "#fff",
+              color: baseLayer === "nautical" ? "#fff" : "#333",
+            }}
+          >
+            ⚓ Nautical Chart
+          </button>
+        </div>
 
         {mode === "historical" && (
           <div style={{

@@ -7,7 +7,8 @@ import {
   Tooltip,
   ZoomControl,
   Polygon,
-  useMapEvents
+  useMapEvents,
+  WMSTileLayer
 } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -185,10 +186,12 @@ function ZoomTracker({ onZoom }) {
   return null;
 }
 
-// ---- OpenSeaMap nautical overlay ----
-// Free, keyless seamark overlay (buoys, lights, beacons, harbors, channels)
-// drawn on top of the base map. Standard {z}/{x}/{y} PNG tiles — no ORB issues.
-const OPENSEAMAP_URL = "https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png";
+// ---- NOAA nautical chart (full paper-chart look via WMS) ----
+// NOAA Chart Display Service, MaritimeChartService WMS. Serves real GetMap PNGs
+// (no ORB). Layers 0-7 = chart display info, features, depths, seabed, routes, etc.
+// US waters only; outside coverage tiles are transparent so CARTO shows through.
+const NOAA_WMS_URL =
+  "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -1424,10 +1427,13 @@ function MapPage() {
           attribution="&copy; OpenStreetMap contributors &copy; CARTO"
         />
         {baseLayer === "nautical" && (
-          <TileLayer
-            url={OPENSEAMAP_URL}
-            attribution='Seamarks &copy; <a href="https://www.openseamap.org">OpenSeaMap</a> contributors'
-            maxZoom={18}
+          <WMSTileLayer
+            url={NOAA_WMS_URL}
+            layers="0,1,2,3,4,5,6,7"
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            attribution="Chart data &copy; NOAA Office of Coast Survey"
           />
         )}
 

@@ -1310,6 +1310,43 @@ function MapPage() {
                   Competitors
                 </button>
               </div>
+
+              {/* Base map toggle */}
+              <div style={{
+                display: "flex",
+                marginLeft: "20px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                overflow: "hidden",
+                fontSize: "12px",
+                fontWeight: "bold"
+              }}>
+                <button
+                  onClick={() => setBaseLayer("default")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    cursor: "pointer",
+                    backgroundColor: baseLayer === "default" ? "#12506b" : "#fff",
+                    color: baseLayer === "default" ? "#fff" : "#12506b",
+                  }}
+                >
+                  Default
+                </button>
+                <button
+                  onClick={() => setBaseLayer("nautical")}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    borderLeft: "1px solid #ccc",
+                    cursor: "pointer",
+                    backgroundColor: baseLayer === "nautical" ? "#12506b" : "#fff",
+                    color: baseLayer === "nautical" ? "#fff" : "#12506b",
+                  }}
+                >
+                  ⚓ Nautical Chart
+                </button>
+              </div>
             </>
           )}
         </div>
@@ -1436,51 +1473,6 @@ function MapPage() {
             attribution="Chart data &copy; NOAA Office of Coast Survey"
           />
         )}
-
-        {/* Base layer switcher */}
-        <div
-          onMouseDown={(e) => e.stopPropagation()}
-          onDoubleClick={(e) => e.stopPropagation()}
-          style={{
-            position: "absolute",
-            top: "10px",
-            left: "10px",
-            zIndex: 1000,
-            display: "flex",
-            borderRadius: "6px",
-            overflow: "hidden",
-            boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-            border: "1px solid #ccc",
-            fontSize: "13px",
-            fontWeight: 600,
-          }}
-        >
-          <button
-            onClick={() => setBaseLayer("default")}
-            style={{
-              padding: "6px 12px",
-              border: "none",
-              cursor: "pointer",
-              backgroundColor: baseLayer === "default" ? "#12506b" : "#fff",
-              color: baseLayer === "default" ? "#fff" : "#333",
-            }}
-          >
-            Default
-          </button>
-          <button
-            onClick={() => setBaseLayer("nautical")}
-            style={{
-              padding: "6px 12px",
-              border: "none",
-              borderLeft: "1px solid #ccc",
-              cursor: "pointer",
-              backgroundColor: baseLayer === "nautical" ? "#12506b" : "#fff",
-              color: baseLayer === "nautical" ? "#fff" : "#333",
-            }}
-          >
-            ⚓ Nautical Chart
-          </button>
-        </div>
 
         {mode === "historical" && (
           <div style={{

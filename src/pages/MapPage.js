@@ -196,12 +196,20 @@ const NOAA_WMS_URL =
   "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
 
 // ---- NEW: NOAA nowCOAST weather layers (GeoServer WMS, free, no key) ----
-// If a layer stops rendering, open the capabilities doc and check current names:
+// Single global OWS endpoint + fully-qualified "workspace:layer" names, exactly
+// as published by the capabilities doc. If a layer stops rendering, re-check:
 // https://nowcoast.noaa.gov/geoserver/ows?SERVICE=WMS&REQUEST=GetCapabilities
-const NOWCOAST_RADAR_URL =
-  "https://nowcoast.noaa.gov/geoserver/observations/weather_radar/wms";
-const NOWCOAST_ALERTS_URL =
-  "https://nowcoast.noaa.gov/geoserver/alerts/wms";
+const NOWCOAST_WMS_URL = "https://nowcoast.noaa.gov/geoserver/ows";
+
+// CONUS layers. Alaska (CITB) and Hawaii (FHI) have their own layer names —
+// swap "conus" for "alaska"/"hawaii" if you later add region-aware toggles:
+//   weather_radar:alaska_base_reflectivity_mosaic / hawaii_...
+//   ndfd_wind:alaska_wind_velocity / hawaii_...
+//   ndfd_wave:alaska_significant_wave_height / hawaii_...
+const LAYER_RADAR  = "weather_radar:conus_base_reflectivity_mosaic"; // ~4 min updates
+const LAYER_ALERTS = "alerts:watches_warnings_advisories";           // global, ~2 min updates
+const LAYER_WIND   = "ndfd_wind:conus_wind_velocity";                // wind barbs (kn), time-enabled
+const LAYER_WAVES  = "ndfd_wave:conus_significant_wave_height";      // sig wave height (ft), time-enabled
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -241,6 +249,17 @@ function MapPage() {
   // ============ NEW: Weather overlay toggles ============
   const [showRadar, setShowRadar] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
+  const [showWind, setShowWind] = useState(false);
+  const [showWaves, setShowWaves] = useState(false);
+  // Forecast layers (wind, waves) are time-enabled: without a time they default
+  // to a frame days out. We pass "now" (UTC ISO) and let the service snap to the
+  // nearest available frame (the layers advertise nearestValue="1"). Refresh it
+  // every 10 min so a long-open tab keeps showing current conditions.
+  const [weatherTime, setWeatherTime] = useState(() => new Date().toISOString());
+  useEffect(() => {
+    const id = setInterval(() => setWeatherTime(new Date().toISOString()), 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
   // ======================================================
 
   // Fetch hull dimensions once, cache for the session
@@ -1413,6 +1432,32 @@ function MapPage() {
                 >
                   ⚠️ Alerts
                 </button>
+                <button
+                  onClick={() => setShowWind(!showWind)}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    borderLeft: "1px solid #ccc",
+                    cursor: "pointer",
+                    backgroundColor: showWind ? "#12506b" : "#fff",
+                    color: showWind ? "#fff" : "#12506b",
+                  }}
+                >
+                  💨 Wind
+                </button>
+                <button
+                  onClick={() => setShowWaves(!showWaves)}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    borderLeft: "1px solid #ccc",
+                    cursor: "pointer",
+                    backgroundColor: showWaves ? "#12506b" : "#fff",
+                    color: showWaves ? "#fff" : "#12506b",
+                  }}
+                >
+                  🌊 Waves
+                </button>
               </div>
             </>
           )}
@@ -1542,10 +1587,12 @@ function MapPage() {
         )}
 
         {/* ============ NEW: NOAA nowCOAST weather overlays ============ */}
+        {/* Radar & alerts are current-state, no time param needed. */}
         {showRadar && (
           <WMSTileLayer
-            url={NOWCOAST_RADAR_URL}
-            layers="conus_base_reflectivity_mosaic"
+            key="wx-radar"
+            url={NOWCOAST_WMS_URL}
+            layers={LAYER_RADAR}
             format="image/png"
             transparent={true}
             version="1.3.0"
@@ -1555,13 +1602,43 @@ function MapPage() {
         )}
         {showAlerts && (
           <WMSTileLayer
-            url={NOWCOAST_ALERTS_URL}
-            layers="watches_warnings_advisories"
+            key="wx-alerts"
+            url={NOWCOAST_WMS_URL}
+            layers={LAYER_ALERTS}
             format="image/png"
             transparent={true}
             version="1.3.0"
             opacity={0.4}
             attribution="Alerts &copy; NOAA nowCOAST"
+          />
+        )}
+        {/* Wind & waves are forecast (time-enabled). The `time` prop is passed
+            through to the WMS GetMap request; the `key` includes weatherTime so
+            the layer re-requests when the time refreshes. */}
+        {showWind && (
+          <WMSTileLayer
+            key={`wx-wind-${weatherTime}`}
+            url={NOWCOAST_WMS_URL}
+            layers={LAYER_WIND}
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={0.8}
+            time={weatherTime}
+            attribution="Wind &copy; NOAA nowCOAST / NWS NDFD"
+          />
+        )}
+        {showWaves && (
+          <WMSTileLayer
+            key={`wx-waves-${weatherTime}`}
+            url={NOWCOAST_WMS_URL}
+            layers={LAYER_WAVES}
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={0.5}
+            time={weatherTime}
+            attribution="Waves &copy; NOAA nowCOAST / NWS NDFD"
           />
         )}
         {/* ============================================================= */}

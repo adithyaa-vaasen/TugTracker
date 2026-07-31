@@ -26,10 +26,12 @@ const getColorRGB = (colorName) => {
   return colors[colorName] || colorName;
 };
 
-// Custom hook for canvas overlay with gradient lines
-const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
+// Custom hook for canvas overlay with gradient lines.
+// CHANGED: now takes pre-fixed paths (antimeridian already applied once in a
+// useMemo) instead of raw historicalData, so nothing is recomputed per frame.
+const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
   useEffect(() => {
-    if (!map || Object.keys(historicalData).length === 0) return;
+    if (!map || Object.keys(fixedPaths).length === 0) return;
 
     const CanvasLayer = L.Layer.extend({
       onAdd: function(map) {
@@ -67,10 +69,10 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
         const ctx = this._ctx;
         ctx.clearRect(0, 0, size.x, size.y);
         
-        // Draw each vessel's path
-        Object.keys(historicalData).forEach(mmsi => {
-          const points = historicalData[mmsi] || [];
-          const visiblePoints = fixAntimeridian(points.slice(0, sliderIndex + 1));
+        // Draw each vessel's path (already antimeridian-fixed)
+        Object.keys(fixedPaths).forEach(mmsi => {
+          const points = fixedPaths[mmsi] || [];
+          const visiblePoints = points.slice(0, sliderIndex + 1);
           
           if (visiblePoints.length < 2) return;
           
@@ -108,7 +110,7 @@ const useCanvasOverlay = (map, historicalData, sliderIndex, getColor) => {
     return () => {
       map.removeLayer(canvasLayer);
     };
-  }, [map, historicalData, sliderIndex, getColor]);
+  }, [map, fixedPaths, sliderIndex, getColor]);
 };
 
 
@@ -192,6 +194,14 @@ function ZoomTracker({ onZoom }) {
 // US waters only; outside coverage tiles are transparent so CARTO shows through.
 const NOAA_WMS_URL =
   "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
+
+// ---- NEW: NOAA nowCOAST weather layers (GeoServer WMS, free, no key) ----
+// If a layer stops rendering, open the capabilities doc and check current names:
+// https://nowcoast.noaa.gov/geoserver/ows?SERVICE=WMS&REQUEST=GetCapabilities
+const NOWCOAST_RADAR_URL =
+  "https://nowcoast.noaa.gov/geoserver/observations/weather_radar/wms";
+const NOWCOAST_ALERTS_URL =
+  "https://nowcoast.noaa.gov/geoserver/alerts/wms";
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -218,10 +228,20 @@ function MapPage() {
   const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
+
+  // ============ NEW: guards against overlapping fetches ============
+  const nearbyInFlight = useRef(false);
+  const liveInFlight = useRef(false);
+  // =================================================================
   
   const [zoom, setZoom] = useState(6);
   const [dimsByMmsi, setDimsByMmsi] = useState({});
   const [baseLayer, setBaseLayer] = useState("default");  // "default" | "nautical"
+
+  // ============ NEW: Weather overlay toggles ============
+  const [showRadar, setShowRadar] = useState(false);
+  const [showAlerts, setShowAlerts] = useState(false);
+  // ======================================================
 
   // Fetch hull dimensions once, cache for the session
   useEffect(() => {
@@ -426,19 +446,22 @@ function MapPage() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // ============ NEW: Fetch nearby vessels ============
+  // ============ NEW: Fetch nearby vessels (with in-flight guard) ============
   const fetchNearbyVessels = () => {
     if (!showNearbyVessels) {
       setNearbyVessels([]);
       return;
     }
+    if (nearbyInFlight.current) return;
+    nearbyInFlight.current = true;
     
     fetch("https://tug.foss.com/live/nearby")
       .then(res => res.json())
       .then(data => {
         setNearbyVessels(data.data || []);
       })
-      .catch(err => console.error("Error fetching nearby vessels:", err));
+      .catch(err => console.error("Error fetching nearby vessels:", err))
+      .finally(() => { nearbyInFlight.current = false; });
   };
 
   useEffect(() => {
@@ -454,6 +477,8 @@ function MapPage() {
 
   const fetchLiveData = () => {
     if (mode === "live") {
+      if (liveInFlight.current) return;
+      liveInFlight.current = true;
       setLoading(true);
       fetch("https://tug.foss.com/live")
         .then(res => res.json())
@@ -488,7 +513,11 @@ function MapPage() {
             setVessels(filtered);
           }
         })
-        .finally(() => setLoading(false));
+        .catch(err => console.error("Error fetching live data:", err))
+        .finally(() => {
+          setLoading(false);
+          liveInFlight.current = false;
+        });
     }
   };
 
@@ -872,8 +901,20 @@ function MapPage() {
     });
   }, [sliderIndex, historicalData]);
 
+  // ============ NEW: Pre-fix antimeridian ONCE per data load ============
+  // Both the canvas overlay and the tooltip hitboxes read from this, so the
+  // expensive per-point work no longer happens on every slider tick / render.
+  const fixedPaths = useMemo(() => {
+    const out = {};
+    Object.keys(historicalData).forEach(mmsi => {
+      out[mmsi] = fixAntimeridian(historicalData[mmsi] || []);
+    });
+    return out;
+  }, [historicalData]);
+  // ======================================================================
+
   // Use canvas overlay for gradient lines in historical mode
-  useCanvasOverlay(mapRef.current, historicalData, sliderIndex, getColor);
+  useCanvasOverlay(mapRef.current, fixedPaths, sliderIndex, getColor);
 
   return (
     <div>
@@ -1311,7 +1352,7 @@ function MapPage() {
                 </button>
               </div>
 
-              {/* Base map toggle */}
+              {/* Base map toggle + NEW weather overlay toggles */}
               <div style={{
                 display: "flex",
                 marginLeft: "20px",
@@ -1345,6 +1386,32 @@ function MapPage() {
                   }}
                 >
                   ⚓ Nautical Chart
+                </button>
+                <button
+                  onClick={() => setShowRadar(!showRadar)}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    borderLeft: "1px solid #ccc",
+                    cursor: "pointer",
+                    backgroundColor: showRadar ? "#12506b" : "#fff",
+                    color: showRadar ? "#fff" : "#12506b",
+                  }}
+                >
+                  🌧 Radar
+                </button>
+                <button
+                  onClick={() => setShowAlerts(!showAlerts)}
+                  style={{
+                    padding: "4px 10px",
+                    border: "none",
+                    borderLeft: "1px solid #ccc",
+                    cursor: "pointer",
+                    backgroundColor: showAlerts ? "#12506b" : "#fff",
+                    color: showAlerts ? "#fff" : "#12506b",
+                  }}
+                >
+                  ⚠️ Alerts
                 </button>
               </div>
             </>
@@ -1474,6 +1541,31 @@ function MapPage() {
           />
         )}
 
+        {/* ============ NEW: NOAA nowCOAST weather overlays ============ */}
+        {showRadar && (
+          <WMSTileLayer
+            url={NOWCOAST_RADAR_URL}
+            layers="conus_base_reflectivity_mosaic"
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={0.55}
+            attribution="Radar &copy; NOAA nowCOAST"
+          />
+        )}
+        {showAlerts && (
+          <WMSTileLayer
+            url={NOWCOAST_ALERTS_URL}
+            layers="watches_warnings_advisories"
+            format="image/png"
+            transparent={true}
+            version="1.3.0"
+            opacity={0.4}
+            attribution="Alerts &copy; NOAA nowCOAST"
+          />
+        )}
+        {/* ============================================================= */}
+
         {mode === "historical" && (
           <div style={{
             position: "absolute",
@@ -1569,8 +1661,13 @@ function MapPage() {
         {/* ============================================ */}
 
         {mode === "historical" && Object.keys(historicalData).map(mmsi => {
-          const points = historicalData[mmsi] || [];
-          const visiblePoints = fixAntimeridian(points.slice(0, sliderIndex + 1));
+          // CHANGED: read from the memoized, pre-fixed path. The invisible
+          // tooltip hitboxes now render the FULL path once per data load,
+          // instead of being rebuilt on every slider tick — the animated
+          // drawing is handled by the canvas overlay, which slices by
+          // sliderIndex itself.
+          const fullPath = fixedPaths[mmsi] || [];
+          const visiblePoints = fullPath.slice(0, sliderIndex + 1);
 
           if (visiblePoints.length === 0) return null;
           
@@ -1578,10 +1675,9 @@ function MapPage() {
           
           return (
             <React.Fragment key={mmsi}>
-              {visiblePoints.slice(0, -1).map((point, i) => {
-                const next = visiblePoints[i + 1];
+              {fullPath.slice(0, -1).map((point, i) => {
+                const next = fullPath[i + 1];
                 const color = getColor(point.speed);
-                const vesselInfo = allVessels.find(v => v.mmsi === parseInt(mmsi)) || { mmsi: parseInt(mmsi) };
                 return (
                   <Polyline
                     key={`${mmsi}-${i}`}

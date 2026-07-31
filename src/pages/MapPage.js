@@ -195,34 +195,52 @@ function ZoomTracker({ onZoom }) {
 const NOAA_WMS_URL =
   "https://gis.charttools.noaa.gov/arcgis/rest/services/MCS/NOAAChartDisplay/MapServer/exts/MaritimeChartService/WMSServer";
 
-// ---- NEW: NOAA nowCOAST weather layers (GeoServer WMS, free, no key) ----
-// Single global OWS endpoint + fully-qualified "workspace:layer" names, exactly
-// as published by the capabilities doc. If a layer stops rendering, re-check:
-// https://nowcoast.noaa.gov/geoserver/ows?SERVICE=WMS&REQUEST=GetCapabilities
+// ---- NOAA weather overlays (all free, no key) ----
+// Three services, because the good layers live in different places:
+//   NOWCOAST  — GeoServer, WMS 1.3.0, `time` dimension. Radar, alerts,
+//               tropical cyclones, GOES, and wind live here (all confirmed working).
+//   NDFD      — digital.weather.gov, WMS 1.1.1, `vtit` dimension (NOT `time`).
+//               The clean gridded forecast fields: waves, sky, humidity, air temp.
+//               CONUS only — AK/HI have sibling endpoints (ndfd.alaska / ndfd.hawaii).
+//   ERDDAP    — NOAA CoastWatch, WMS 1.3.0, `time` dimension. Global SST (JPL MUR).
 const NOWCOAST_WMS_URL = "https://nowcoast.noaa.gov/geoserver/ows";
+const NDFD_WMS_URL     = "https://digital.weather.gov/ndfd.conus/wms";
+const SST_WMS_URL      = "https://cwcgom.aoml.noaa.gov/erddap/wms/jplMURSST41/request";
 
-// Single-select weather overlay catalog. `time: true` means the layer is a
-// forecast/dated field and needs a TIME param to show current conditions
-// (otherwise it defaults to a frame days out). Layers marked `time: false`
-// are current-state / latest-frame and need no TIME param.
-//
-// CONUS layers won't cover Alaska (CITB) or Hawaii (FHI); those have their own
-// "alaska_"/"hawaii_" names (see capabilities doc) if you add region switching
-// later. Tropical cyclones, alerts, SST and GOES are already broad/global.
+// Per-layer WMS settings. `timeDim` is the name of the time parameter this
+// service expects (null = current-state layer, no time needed). `timeFmt`
+// selects how we format "now" for that dimension. Names read from each
+// service's live GetCapabilities (waveheight and SST verified directly;
+// sky/rh/temp are the standard NDFD element names).
 const WEATHER_LAYERS = [
-  { key: "none",     label: "No weather layer", layer: null,                                            opacity: 0,    time: false },
-  { key: "radar",    label: "🌧 Radar",          layer: "weather_radar:conus_base_reflectivity_mosaic",  opacity: 0.55, time: false },
-  { key: "alerts",   label: "⚠️ Alerts",         layer: "alerts:watches_warnings_advisories",            opacity: 0.4,  time: false },
-  { key: "wind",     label: "💨 Wind",           layer: "ndfd_wind:conus_wind_velocity",                 opacity: 0.8,  time: true  },
-  { key: "waves",    label: "🌊 Wave height",    layer: "ndfd_wave:conus_significant_wave_height",       opacity: 0.5,  time: true  },
-  { key: "cyclones", label: "🌀 Tropical cyclones", layer: "tropical_cyclones:active_tropical_cyclones", opacity: 0.75, time: false },
-  { key: "sst",      label: "🌡 Sea surface temp",  layer: "sea_surface_temperature:global_sea_surface_temperature", opacity: 0.55, time: true  },
-  { key: "goes_vis", label: "🛰 GOES visible",   layer: "satellite:goes_visible_imagery",                opacity: 0.55, time: false },
-  { key: "goes_ir",  label: "🛰 GOES infrared",  layer: "satellite:goes_longwave_imagery",               opacity: 0.55, time: false },
-  { key: "sky",      label: "☁️ Sky cover",      layer: "ndfd_sky:conus_total_sky_cover",                opacity: 0.5,  time: true  },
-  { key: "humidity", label: "💧 Relative humidity", layer: "ndfd_moisture:conus_relative_humidity",      opacity: 0.5,  time: true  },
-  { key: "airtemp",  label: "🌡 Air temperature",   layer: "ndfd_temperature:conus_air_temperature",     opacity: 0.5,  time: true  },
+  { key: "none",     label: "No weather layer",     url: null,             version: "1.3.0", layer: null,                                            opacity: 0,    timeDim: null,   timeFmt: null },
+  { key: "radar",    label: "🌧 Radar",              url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "weather_radar:conus_base_reflectivity_mosaic",  opacity: 0.55, timeDim: null,   timeFmt: null },
+  { key: "alerts",   label: "⚠️ Alerts",             url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "alerts:watches_warnings_advisories",            opacity: 0.4,  timeDim: null,   timeFmt: null },
+  { key: "wind",     label: "💨 Wind",               url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "ndfd_wind:conus_wind_velocity",                 opacity: 0.8,  timeDim: "time", timeFmt: "iso" },
+  { key: "waves",    label: "🌊 Wave height",        url: NDFD_WMS_URL,     version: "1.1.1", layer: "ndfd.conus.waveheight",                         opacity: 0.5,  timeDim: "vtit", timeFmt: "minute" },
+  { key: "cyclones", label: "🌀 Tropical cyclones",  url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "tropical_cyclones:active_tropical_cyclones",    opacity: 0.75, timeDim: null,   timeFmt: null },
+  { key: "sst",      label: "🌡 Sea surface temp",   url: SST_WMS_URL,      version: "1.3.0", layer: "jplMURSST41:analysed_sst",                      opacity: 0.6,  timeDim: "time", timeFmt: "dailyz" },
+  { key: "goes_vis", label: "🛰 GOES visible",       url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "satellite:goes_visible_imagery",                opacity: 0.55, timeDim: null,   timeFmt: null },
+  { key: "goes_ir",  label: "🛰 GOES infrared",      url: NOWCOAST_WMS_URL, version: "1.3.0", layer: "satellite:goes_longwave_imagery",               opacity: 0.55, timeDim: null,   timeFmt: null },
+  { key: "sky",      label: "☁️ Sky cover",          url: NDFD_WMS_URL,     version: "1.1.1", layer: "ndfd.conus.sky",                                opacity: 0.5,  timeDim: "vtit", timeFmt: "minute" },
+  { key: "humidity", label: "💧 Relative humidity",  url: NDFD_WMS_URL,     version: "1.1.1", layer: "ndfd.conus.rh",                                 opacity: 0.5,  timeDim: "vtit", timeFmt: "minute" },
+  { key: "airtemp",  label: "🌡 Air temperature",    url: NDFD_WMS_URL,     version: "1.1.1", layer: "ndfd.conus.temp",                               opacity: 0.5,  timeDim: "vtit", timeFmt: "minute" },
 ];
+
+// Build the value for a layer's time dimension from "now".
+const _pad2 = (n) => String(n).padStart(2, "0");
+const weatherTimeValue = (fmt) => {
+  if (fmt === "iso") return new Date().toISOString();                 // nowcoast TIME
+  if (fmt === "minute") {                                             // NDFD vtit: YYYY-MM-DDTHH:MM (UTC, top of hour)
+    const d = new Date();
+    return `${d.getUTCFullYear()}-${_pad2(d.getUTCMonth() + 1)}-${_pad2(d.getUTCDate())}T${_pad2(d.getUTCHours())}:00`;
+  }
+  if (fmt === "dailyz") {                                             // ERDDAP daily SST: 2 days back at 09:00:00Z (safe latency)
+    const d = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+    return `${d.getUTCFullYear()}-${_pad2(d.getUTCMonth() + 1)}-${_pad2(d.getUTCDate())}T09:00:00Z`;
+  }
+  return null;
+};
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -1583,26 +1601,30 @@ function MapPage() {
           />
         )}
 
-        {/* ============ NEW: NOAA nowCOAST weather overlay (single-select) ============ */}
+        {/* ============ NOAA weather overlay (single-select, multi-service) ============ */}
         {(() => {
           const w = WEATHER_LAYERS.find(x => x.key === activeWeatherLayer);
           if (!w || !w.layer) return null;
-          // Time-enabled layers get the current timestamp (and a key that changes
-          // with it, so the tile layer re-requests on refresh). Current-state
-          // layers omit time entirely and default to their latest frame.
-          const timeProps = w.time
-            ? { time: weatherTime, key: `wx-${w.key}-${weatherTime}` }
-            : { key: `wx-${w.key}` };
+          // Reference weatherTime so this recomputes on the 10-min refresh tick.
+          void weatherTime;
+          // Build the time param under whatever name THIS service expects
+          // (nowcoast: `time`, NDFD: `vtit`, ERDDAP: `time`). Current-state
+          // layers have timeDim null and get no time param at all.
+          const tVal = w.timeDim ? weatherTimeValue(w.timeFmt) : null;
+          const extra = {};
+          if (w.timeDim && tVal) extra[w.timeDim] = tVal;
+          const keyStr = tVal ? `wx-${w.key}-${tVal}` : `wx-${w.key}`;
           return (
             <WMSTileLayer
-              {...timeProps}
-              url={NOWCOAST_WMS_URL}
+              {...extra}
+              key={keyStr}
+              url={w.url}
               layers={w.layer}
               format="image/png"
               transparent={true}
-              version="1.3.0"
+              version={w.version}
               opacity={w.opacity}
-              attribution="Weather &copy; NOAA nowCOAST"
+              attribution="Weather &copy; NOAA"
             />
           );
         })()}

@@ -201,15 +201,28 @@ const NOAA_WMS_URL =
 // https://nowcoast.noaa.gov/geoserver/ows?SERVICE=WMS&REQUEST=GetCapabilities
 const NOWCOAST_WMS_URL = "https://nowcoast.noaa.gov/geoserver/ows";
 
-// CONUS layers. Alaska (CITB) and Hawaii (FHI) have their own layer names —
-// swap "conus" for "alaska"/"hawaii" if you later add region-aware toggles:
-//   weather_radar:alaska_base_reflectivity_mosaic / hawaii_...
-//   ndfd_wind:alaska_wind_velocity / hawaii_...
-//   ndfd_wave:alaska_significant_wave_height / hawaii_...
-const LAYER_RADAR  = "weather_radar:conus_base_reflectivity_mosaic"; // ~4 min updates
-const LAYER_ALERTS = "alerts:watches_warnings_advisories";           // global, ~2 min updates
-const LAYER_WIND   = "ndfd_wind:conus_wind_velocity";                // wind barbs (kn), time-enabled
-const LAYER_WAVES  = "ndfd_wave:conus_significant_wave_height";      // sig wave height (ft), time-enabled
+// Single-select weather overlay catalog. `time: true` means the layer is a
+// forecast/dated field and needs a TIME param to show current conditions
+// (otherwise it defaults to a frame days out). Layers marked `time: false`
+// are current-state / latest-frame and need no TIME param.
+//
+// CONUS layers won't cover Alaska (CITB) or Hawaii (FHI); those have their own
+// "alaska_"/"hawaii_" names (see capabilities doc) if you add region switching
+// later. Tropical cyclones, alerts, SST and GOES are already broad/global.
+const WEATHER_LAYERS = [
+  { key: "none",     label: "No weather layer", layer: null,                                            opacity: 0,    time: false },
+  { key: "radar",    label: "🌧 Radar",          layer: "weather_radar:conus_base_reflectivity_mosaic",  opacity: 0.55, time: false },
+  { key: "alerts",   label: "⚠️ Alerts",         layer: "alerts:watches_warnings_advisories",            opacity: 0.4,  time: false },
+  { key: "wind",     label: "💨 Wind",           layer: "ndfd_wind:conus_wind_velocity",                 opacity: 0.8,  time: true  },
+  { key: "waves",    label: "🌊 Wave height",    layer: "ndfd_wave:conus_significant_wave_height",       opacity: 0.5,  time: true  },
+  { key: "cyclones", label: "🌀 Tropical cyclones", layer: "tropical_cyclones:active_tropical_cyclones", opacity: 0.75, time: false },
+  { key: "sst",      label: "🌡 Sea surface temp",  layer: "sea_surface_temperature:global_sea_surface_temperature", opacity: 0.55, time: true  },
+  { key: "goes_vis", label: "🛰 GOES visible",   layer: "satellite:goes_visible_imagery",                opacity: 0.55, time: false },
+  { key: "goes_ir",  label: "🛰 GOES infrared",  layer: "satellite:goes_longwave_imagery",               opacity: 0.55, time: false },
+  { key: "sky",      label: "☁️ Sky cover",      layer: "ndfd_sky:conus_total_sky_cover",                opacity: 0.5,  time: true  },
+  { key: "humidity", label: "💧 Relative humidity", layer: "ndfd_moisture:conus_relative_humidity",      opacity: 0.5,  time: true  },
+  { key: "airtemp",  label: "🌡 Air temperature",   layer: "ndfd_temperature:conus_air_temperature",     opacity: 0.5,  time: true  },
+];
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
@@ -246,21 +259,18 @@ function MapPage() {
   const [dimsByMmsi, setDimsByMmsi] = useState({});
   const [baseLayer, setBaseLayer] = useState("default");  // "default" | "nautical"
 
-  // ============ NEW: Weather overlay toggles ============
-  const [showRadar, setShowRadar] = useState(false);
-  const [showAlerts, setShowAlerts] = useState(false);
-  const [showWind, setShowWind] = useState(false);
-  const [showWaves, setShowWaves] = useState(false);
-  // Forecast layers (wind, waves) are time-enabled: without a time they default
-  // to a frame days out. We pass "now" (UTC ISO) and let the service snap to the
-  // nearest available frame (the layers advertise nearestValue="1"). Refresh it
-  // every 10 min so a long-open tab keeps showing current conditions.
+  // ============ NEW: Weather overlay (single-select) ============
+  const [activeWeatherLayer, setActiveWeatherLayer] = useState("none");
+  // Forecast layers are time-enabled: without a time they default to a frame
+  // days out. We pass "now" (UTC ISO) and let the service snap to the nearest
+  // available frame (layers advertise nearestValue="1"). Refresh every 10 min
+  // so a long-open tab keeps showing current conditions.
   const [weatherTime, setWeatherTime] = useState(() => new Date().toISOString());
   useEffect(() => {
     const id = setInterval(() => setWeatherTime(new Date().toISOString()), 10 * 60 * 1000);
     return () => clearInterval(id);
   }, []);
-  // ======================================================
+  // ==============================================================
 
   // Fetch hull dimensions once, cache for the session
   useEffect(() => {
@@ -755,6 +765,9 @@ function MapPage() {
       setHistoryRange(rangeDays);
       setLoadingHistory(false);
       setMode("historical");
+      // Weather overlays are live-only (current-state services); don't leave them
+      // painting present-day weather under past tracks.
+      setActiveWeatherLayer("none");
       
       setTimeout(() => {
         if (mapRef.current) {
@@ -810,6 +823,9 @@ function MapPage() {
         setHistoryRange(rangeDays);
         setLoadingHistory(false);
         setMode("historical");
+        // Weather overlays are live-only (current-state services); don't leave them
+        // painting present-day weather under past tracks.
+        setActiveWeatherLayer("none");
         
         setTimeout(() => {
           if (mapRef.current) {
@@ -1117,6 +1133,9 @@ function MapPage() {
               }}>
                 🔄 Back to Live
               </button>
+              <span style={{ fontSize: "12px", color: "#888", fontStyle: "italic" }}>
+                Weather overlays are live-only
+              </span>
               {Object.keys(historicalData).length > 0 && (
                 <>
                   <button onClick={() => setIsPlaying(!isPlaying)}>
@@ -1406,62 +1425,40 @@ function MapPage() {
                 >
                   ⚓ Nautical Chart
                 </button>
-                <button
-                  onClick={() => setShowRadar(!showRadar)}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    borderLeft: "1px solid #ccc",
-                    cursor: "pointer",
-                    backgroundColor: showRadar ? "#12506b" : "#fff",
-                    color: showRadar ? "#fff" : "#12506b",
-                  }}
-                >
-                  🌧 Radar
-                </button>
-                <button
-                  onClick={() => setShowAlerts(!showAlerts)}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    borderLeft: "1px solid #ccc",
-                    cursor: "pointer",
-                    backgroundColor: showAlerts ? "#12506b" : "#fff",
-                    color: showAlerts ? "#fff" : "#12506b",
-                  }}
-                >
-                  ⚠️ Alerts
-                </button>
-                <button
-                  onClick={() => setShowWind(!showWind)}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    borderLeft: "1px solid #ccc",
-                    cursor: "pointer",
-                    backgroundColor: showWind ? "#12506b" : "#fff",
-                    color: showWind ? "#fff" : "#12506b",
-                  }}
-                >
-                  💨 Wind
-                </button>
-                <button
-                  onClick={() => setShowWaves(!showWaves)}
-                  style={{
-                    padding: "4px 10px",
-                    border: "none",
-                    borderLeft: "1px solid #ccc",
-                    cursor: "pointer",
-                    backgroundColor: showWaves ? "#12506b" : "#fff",
-                    color: showWaves ? "#fff" : "#12506b",
-                  }}
-                >
-                  🌊 Waves
-                </button>
               </div>
             </>
           )}
         </div>
+
+        {/* ============ NEW: Weather layer dropdown (live mode, right side) ============ */}
+        {mode === "live" && (
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <label htmlFor="weatherLayerSelect" style={{ fontSize: "13px", fontWeight: "600", color: "#12506b", whiteSpace: "nowrap" }}>
+              Weather layer:
+            </label>
+            <select
+              id="weatherLayerSelect"
+              value={activeWeatherLayer}
+              onChange={(e) => setActiveWeatherLayer(e.target.value)}
+              style={{
+                padding: "5px 10px",
+                border: "1px solid #ccc",
+                borderRadius: "4px",
+                backgroundColor: "#fff",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: "#12506b",
+                cursor: "pointer",
+                minWidth: "180px",
+              }}
+            >
+              {WEATHER_LAYERS.map(w => (
+                <option key={w.key} value={w.key}>{w.label}</option>
+              ))}
+            </select>
+          </div>
+        )}
+        {/* ========================================================================== */}
 
         {mode === "historical" && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "6px" }}>
@@ -1586,62 +1583,30 @@ function MapPage() {
           />
         )}
 
-        {/* ============ NEW: NOAA nowCOAST weather overlays ============ */}
-        {/* Radar & alerts are current-state, no time param needed. */}
-        {showRadar && (
-          <WMSTileLayer
-            key="wx-radar"
-            url={NOWCOAST_WMS_URL}
-            layers={LAYER_RADAR}
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={0.55}
-            attribution="Radar &copy; NOAA nowCOAST"
-          />
-        )}
-        {showAlerts && (
-          <WMSTileLayer
-            key="wx-alerts"
-            url={NOWCOAST_WMS_URL}
-            layers={LAYER_ALERTS}
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={0.4}
-            attribution="Alerts &copy; NOAA nowCOAST"
-          />
-        )}
-        {/* Wind & waves are forecast (time-enabled). The `time` prop is passed
-            through to the WMS GetMap request; the `key` includes weatherTime so
-            the layer re-requests when the time refreshes. */}
-        {showWind && (
-          <WMSTileLayer
-            key={`wx-wind-${weatherTime}`}
-            url={NOWCOAST_WMS_URL}
-            layers={LAYER_WIND}
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={0.8}
-            time={weatherTime}
-            attribution="Wind &copy; NOAA nowCOAST / NWS NDFD"
-          />
-        )}
-        {showWaves && (
-          <WMSTileLayer
-            key={`wx-waves-${weatherTime}`}
-            url={NOWCOAST_WMS_URL}
-            layers={LAYER_WAVES}
-            format="image/png"
-            transparent={true}
-            version="1.3.0"
-            opacity={0.5}
-            time={weatherTime}
-            attribution="Waves &copy; NOAA nowCOAST / NWS NDFD"
-          />
-        )}
-        {/* ============================================================= */}
+        {/* ============ NEW: NOAA nowCOAST weather overlay (single-select) ============ */}
+        {(() => {
+          const w = WEATHER_LAYERS.find(x => x.key === activeWeatherLayer);
+          if (!w || !w.layer) return null;
+          // Time-enabled layers get the current timestamp (and a key that changes
+          // with it, so the tile layer re-requests on refresh). Current-state
+          // layers omit time entirely and default to their latest frame.
+          const timeProps = w.time
+            ? { time: weatherTime, key: `wx-${w.key}-${weatherTime}` }
+            : { key: `wx-${w.key}` };
+          return (
+            <WMSTileLayer
+              {...timeProps}
+              url={NOWCOAST_WMS_URL}
+              layers={w.layer}
+              format="image/png"
+              transparent={true}
+              version="1.3.0"
+              opacity={w.opacity}
+              attribution="Weather &copy; NOAA nowCOAST"
+            />
+          );
+        })()}
+        {/* ========================================================================== */}
 
         {mode === "historical" && (
           <div style={{

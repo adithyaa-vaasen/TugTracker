@@ -340,7 +340,7 @@ function MapPage() {
     368247150,  // KAVIK WIND --CITB Added on 04/24/25
     368104860,  // SAG WIND --CITB Added on 04/24/25
     368026520,  // CAPT FRANK MOODY
-    367304650,  // GLACIER WIND --CITB
+    368378980,  // GLACIER WIND --CITB
     368210150,  // RESURRECTION --CITB
     367186610,  // STELLAR WIND --CITB
     367771910,  // DR HANK KAPLAN --CITB
@@ -412,6 +412,9 @@ function MapPage() {
     367017440,  // PIPER INNESS --SoCal
     367566980,   // WYNEMA SPIRIT --CSR  Foss charter from Brusco
     368455080, // LINDY HDT Foss Charter
+    368379240, // COLUMBIA (Pilot Vessel)
+    367023320, // SWIFT (Pilot Vessel)
+    368476780, // PACIFIC PRIDE  - AM
   ];
   
   // SM vessel groups for different colors
@@ -423,11 +426,12 @@ function MapPage() {
       368104850,  // KUPARUK WIND --CITB
       368247150,  // KAVIK WIND --CITB
       368104860,  // SAG WIND --CITB
-      367304650,  // GLACIER WIND --CITB
+      368378980,  // GLACIER WIND --CITB
       368210150,  // RESURRECTION --CITB
       367186610,  // STELLAR WIND --CITB
       367771910,  // DR HANK KAPLAN --CITB
       368026520,  // CAPT FRANK MOODY
+      368379240, // COLUMBIA (Pilot Vessel)
     ],
     
     // AmNav vessels (AM group) - Red
@@ -445,6 +449,7 @@ function MapPage() {
       367581220,  // JAMIE RENEA --NorCal
       366998840,  // MILLENNIUM MAVERICK --SoCal
       367569830,  // BARBARA JEAN MULHOLLAND --SoCal
+      368476780, // PACIFIC PRIDE  - AM
     ],
     
     // All other SM vessels (Foss and others) - Green (default)
@@ -456,7 +461,7 @@ function MapPage() {
     // Example: MMSI: color
     // 368066590: "#FF0000",  // BERING WIND - Red
     // 367576720: "#FFA500",  // BRISTOL WIND - Orange
-    // 367304650: "#800080",  // GLACIER WIND - Purple
+    // 368378980: "#800080",  // GLACIER WIND - Purple
     // Add more vessels here as needed
   };
   

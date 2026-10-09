@@ -14,6 +14,8 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-polylinedecorator";
 
+const API_BASE = "https://tug.foss.com";
+
 // ============ ADDITIONS START HERE ============
 // Helper function to convert color names to RGB
 const getColorRGB = (colorName) => {
@@ -26,10 +28,23 @@ const getColorRGB = (colorName) => {
   return colors[colorName] || colorName;
 };
 
+// MOVED to module level: a stable function, so the canvas overlay doesn't
+// see a "new" getColor on every render and rebuild itself.
+const getColor = (speed) => {
+  if (speed <= 8) return "green";
+  if (speed <= 9) return "yellow";
+  if (speed <= 10) return "orange";
+  return "red";
+};
+
 // Custom hook for canvas overlay with gradient lines.
-// CHANGED: now takes pre-fixed paths (antimeridian already applied once in a
-// useMemo) instead of raw historicalData, so nothing is recomputed per frame.
-const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
+// CHANGED: the canvas layer is created ONCE per data load and only redrawn when
+// the slider moves (it used to be torn down and recreated on every tick/render).
+const useCanvasOverlay = (map, fixedPaths, sliderIndex) => {
+  const layerRef = useRef(null);
+  const stateRef = useRef({ fixedPaths, sliderIndex });
+  stateRef.current = { fixedPaths, sliderIndex };
+
   useEffect(() => {
     if (!map || Object.keys(fixedPaths).length === 0) return;
 
@@ -37,6 +52,7 @@ const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
       onAdd: function(map) {
         this._map = map;
         this._canvas = L.DomUtil.create('canvas', 'leaflet-layer');
+        this._canvas.style.pointerEvents = 'none'; // decorative only; never block tooltips/clicks
         this._ctx = this._canvas.getContext('2d');
         
         const size = this._map.getSize();
@@ -61,6 +77,7 @@ const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
       
       _redraw: function() {
         if (!this._map) return;
+        const { fixedPaths: paths, sliderIndex: idx } = stateRef.current;
         
         const size = this._map.getSize();
         this._canvas.width = size.x;
@@ -70,9 +87,9 @@ const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
         ctx.clearRect(0, 0, size.x, size.y);
         
         // Draw each vessel's path (already antimeridian-fixed)
-        Object.keys(fixedPaths).forEach(mmsi => {
-          const points = fixedPaths[mmsi] || [];
-          const visiblePoints = points.slice(0, sliderIndex + 1);
+        Object.keys(paths).forEach(mmsi => {
+          const points = paths[mmsi] || [];
+          const visiblePoints = points.slice(0, idx + 1);
           
           if (visiblePoints.length < 2) return;
           
@@ -106,11 +123,18 @@ const useCanvasOverlay = (map, fixedPaths, sliderIndex, getColor) => {
     
     const canvasLayer = new CanvasLayer();
     canvasLayer.addTo(map);
+    layerRef.current = canvasLayer;
     
     return () => {
       map.removeLayer(canvasLayer);
+      layerRef.current = null;
     };
-  }, [map, fixedPaths, sliderIndex, getColor]);
+  }, [map, fixedPaths]);
+
+  // Slider moved: just repaint the existing canvas
+  useEffect(() => {
+    if (layerRef.current) layerRef.current._redraw();
+  }, [sliderIndex]);
 };
 
 
@@ -144,6 +168,85 @@ const normalizeLng = (lng) => {
   if (lng > 0) return lng - 360;
   return lng;
 };
+
+// ============ NEW: cached arrow icons ============
+// Building a new L.divIcon per marker per render forces Leaflet to rebuild the
+// DOM node every time. Reusing one icon per (angle, color) avoids that.
+const _iconCache = new Map();
+const arrowIcon = (angle, color) => {
+  const a = Math.round(Number(angle) || 0);
+  const key = `${a}|${color}`;
+  let icon = _iconCache.get(key);
+  if (!icon) {
+    icon = L.divIcon({
+      className: "ship-icon",
+      html: `<div style="font-size: 20px; transform: rotate(${a - 90}deg); transform-origin: center center; color: ${color};">➤</div>`,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+    _iconCache.set(key, icon);
+  }
+  return icon;
+};
+
+const startIcon = L.divIcon({ className: "start-icon", html: "🟢", iconSize: [20, 20], iconAnchor: [10, 10] });
+// =================================================
+
+// ============ NEW: last-known live data in the browser ============
+// Returning visitors see vessels instantly while fresh data loads behind it.
+const LIVE_CACHE_KEY = "tugTracker.live.v1";
+const LIVE_CACHE_MAX_AGE = 24 * 60 * 60 * 1000;
+const readLiveCache = () => {
+  try {
+    const raw = localStorage.getItem(LIVE_CACHE_KEY);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (!Array.isArray(data) || Date.now() - ts > LIVE_CACHE_MAX_AGE) return null;
+    return data;
+  } catch {
+    return null;
+  }
+};
+const writeLiveCache = (data) => {
+  try {
+    localStorage.setItem(LIVE_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  } catch {
+    /* storage full or blocked: ignore */
+  }
+};
+// ===================================================================
+
+// ============ NEW: historical fetch helpers ============
+const HIST_CACHE_TTL = 5 * 60 * 1000; // reuse fetched history for 5 min
+const _pad = (n) => String(n).padStart(2, "0");
+const fmtLocal = (d) =>
+  `${d.getFullYear()}-${_pad(d.getMonth() + 1)}-${_pad(d.getDate())} ${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`;
+
+const groupByMmsi = (rows) => {
+  const grouped = {};
+  rows.forEach(point => {
+    if (point.latitude && point.longitude) {
+      if (!grouped[point.mmsi]) grouped[point.mmsi] = [];
+      grouped[point.mmsi].push(point);
+    }
+  });
+  return grouped;
+};
+
+// Full resolution, no downsampling: just a narrower window first
+const fetchHistoricalRange = (mmsiList, startDate) => {
+  const end = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const url = `${API_BASE}/historical?mmsi=${mmsiList.join(',')}`
+    + `&start=${encodeURIComponent(fmtLocal(startDate))}`
+    + `&end=${encodeURIComponent(end)}`;
+  return fetch(url)
+    .then(res => res.json())
+    .then(data => {
+      if (data.error) throw new Error(data.error);
+      return groupByMmsi(data.data || []);
+    });
+};
+// =======================================================
 
 // ---- Ship hull rendering ----
 const SHIP_ZOOM = 13;        // at/above this zoom, draw hull polygons instead of arrows
@@ -244,9 +347,12 @@ const weatherTimeValue = (fmt) => {
 // ============ ADDITIONS END HERE ============
 
 function MapPage() {
+  // NEW: hydrate from the last session's live data so the map is populated immediately
+  const [bootLive] = useState(readLiveCache);
+
   const [mode, setMode] = useState("live");
   const [vessels, setVessels] = useState([]);
-  const [allVessels, setAllVessels] = useState([]);
+  const [allVessels, setAllVessels] = useState(() => bootLive || []);
   const [selectedVessels, setSelectedVessels] = useState([]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [dropdownSearch, setDropdownSearch] = useState("");
@@ -263,7 +369,7 @@ function MapPage() {
   const [historyRange, setHistoryRange] = useState(1);
   const [fullHistoricalData, setFullHistoricalData] = useState({});
   const [fullHistory, setFullHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !bootLive);
   const [groupFilter, setGroupFilter] = useState("all");
   const dropdownRef = useRef();
   const searchInputRef = useRef();
@@ -292,14 +398,17 @@ function MapPage() {
 
   // Fetch hull dimensions once, cache for the session
   useEffect(() => {
-    fetch("https://tug.foss.com/vessel-dimensions")
+    fetch(`${API_BASE}/vessel-dimensions`)
       .then((res) => res.json())
       .then((data) => setDimsByMmsi(data.dimensions || {}))
       .catch((err) => console.error("Error fetching vessel dimensions:", err));
   }, []);
   
-  // Cache for historical data
+  // Cache for historical data: key -> { day1, day1Ts, full, fullTs, fullPromise }
   const historicalCacheRef = useRef({});
+  // NEW: which vessel set is currently shown in historical mode
+  const activeHistKeyRef = useRef(null);
+  const activeHistMmsiRef = useRef([]);
   
   // ============ NEW: Nearby vessels state (Live mode only) ============
   const [showNearbyVessels, setShowNearbyVessels] = useState(false);
@@ -455,6 +564,11 @@ function MapPage() {
     // All other SM vessels (Foss and others) - Green (default)
     // These will get green color by default
   };
+
+  // NEW: O(1) lookups instead of scanning arrays for every vessel on every render
+  const smTugsSet = useMemo(() => new Set(smTugsMMSI), []);           // eslint-disable-line react-hooks/exhaustive-deps
+  const citbSet = useMemo(() => new Set(smVesselGroups.citb), []);    // eslint-disable-line react-hooks/exhaustive-deps
+  const amnavSet = useMemo(() => new Set(smVesselGroups.amnav), []);  // eslint-disable-line react-hooks/exhaustive-deps
   
   // Custom vessel colors - Add vessels here with their MMSI and desired color
   const customVesselColors = {
@@ -476,7 +590,7 @@ function MapPage() {
     fetchLiveData();
     const interval = setInterval(fetchLiveData, 4 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (dropdownOpen && searchInputRef.current) {
@@ -507,7 +621,7 @@ function MapPage() {
     if (nearbyInFlight.current) return;
     nearbyInFlight.current = true;
     
-    fetch("https://tug.foss.com/live/nearby")
+    fetch(`${API_BASE}/live/nearby`)
       .then(res => res.json())
       .then(data => {
         setNearbyVessels(data.data || []);
@@ -524,53 +638,29 @@ function MapPage() {
     } else if (mode === "live") {
       setNearbyVessels([]);
     }
-  }, [showNearbyVessels, mode]);
+  }, [showNearbyVessels, mode]); // eslint-disable-line react-hooks/exhaustive-deps
   // ===================================================
 
+  // CHANGED: only stores the raw data. The filter effect below derives `vessels`
+  // (this also fixes the 4-min refresh using a stale groupFilter/selection).
   const fetchLiveData = () => {
-    if (mode === "live") {
-      if (liveInFlight.current) return;
-      liveInFlight.current = true;
-      setLoading(true);
-      fetch("https://tug.foss.com/live")
-        .then(res => res.json())
-        .then(data => {
-          const vesselsData = data.data || [];
-          setAllVessels(vesselsData);
-          
-          let filteredByCategory = vesselsData;
-          
-          if (groupFilter === "saltchuk") {
-            filteredByCategory = vesselsData.filter(v => isSMTug(v.mmsi));
-          } else if (groupFilter === "amnav") {
-            filteredByCategory = vesselsData.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-          } else if (groupFilter === "citb") {
-            filteredByCategory = vesselsData.filter(v => smVesselGroups.citb.includes(v.mmsi));
-          } else if (groupFilter === "foss") {
-            filteredByCategory = vesselsData.filter(v => 
-              isSMTug(v.mmsi) && 
-              !smVesselGroups.amnav.includes(v.mmsi) && 
-              !smVesselGroups.citb.includes(v.mmsi)
-            );
-          } else if (groupFilter === "competitors") {
-            filteredByCategory = vesselsData.filter(v => !isSMTug(v.mmsi));
-          }
-          
-          if (selectedVessels.length === 0) {
-            setVessels(filteredByCategory);
-          } else {
-            const filtered = filteredByCategory.filter(v => 
-              selectedVessels.includes(v.mmsi)
-            );
-            setVessels(filtered);
-          }
-        })
-        .catch(err => console.error("Error fetching live data:", err))
-        .finally(() => {
-          setLoading(false);
-          liveInFlight.current = false;
-        });
-    }
+    if (liveInFlight.current) return;
+    liveInFlight.current = true;
+    fetch(`${API_BASE}/live`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data.data)) {
+          setAllVessels(data.data);
+          writeLiveCache(data.data);
+        } else if (data.error) {
+          console.error("Live endpoint error:", data.error);
+        }
+      })
+      .catch(err => console.error("Error fetching live data:", err))
+      .finally(() => {
+        setLoading(false);
+        liveInFlight.current = false;
+      });
   };
 
   useEffect(() => {
@@ -590,7 +680,7 @@ function MapPage() {
       }, playSpeed);
       return () => clearInterval(timer);
     }
-  }, [isPlaying, mode, historicalData, playSpeed]);
+  }, [isPlaying, mode, historicalData, playSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (mode === "historical" && Object.keys(fullHistoricalData).length > 0) {
@@ -633,7 +723,9 @@ function MapPage() {
     }
   }, [historyRange, fullHistoricalData, mode, dateRangeFrom, dateRangeTo]);
 
-  const isSMTug = (mmsi) => smTugsMMSI.includes(mmsi);
+  const isSMTug = (mmsi) => smTugsSet.has(mmsi);
+  const isCitb = (mmsi) => citbSet.has(mmsi);
+  const isAmnav = (mmsi) => amnavSet.has(mmsi);
 
   const getVesselCategory = (vessel) => {
     return isSMTug(vessel.mmsi) ? "Saltchuk Marine" : "Competitor";
@@ -645,9 +737,9 @@ function MapPage() {
     }
     
     if (isSMTug(vessel.mmsi)) {
-      if (smVesselGroups.citb.includes(vessel.mmsi)) {
+      if (isCitb(vessel.mmsi)) {
         return "#5DADE2";
-      } else if (smVesselGroups.amnav.includes(vessel.mmsi)) {
+      } else if (isAmnav(vessel.mmsi)) {
         return "#E74C3C";
       } else {
         return "#4CA61C";
@@ -657,25 +749,19 @@ function MapPage() {
     return "#161CB0";
   };
 
+  // NEW: one place for the group filter (was copy-pasted in three spots)
+  const filterByGroup = (list) => {
+    if (groupFilter === "saltchuk") return list.filter(v => isSMTug(v.mmsi));
+    if (groupFilter === "amnav") return list.filter(v => isAmnav(v.mmsi));
+    if (groupFilter === "citb") return list.filter(v => isCitb(v.mmsi));
+    if (groupFilter === "foss") return list.filter(v => isSMTug(v.mmsi) && !isAmnav(v.mmsi) && !isCitb(v.mmsi));
+    if (groupFilter === "competitors") return list.filter(v => !isSMTug(v.mmsi));
+    return list;
+  };
+
   useEffect(() => {
     if (mode === "live" && allVessels.length > 0) {
-      let vesselsToShow = allVessels;
-      
-      if (groupFilter === "saltchuk") {
-        vesselsToShow = vesselsToShow.filter(v => isSMTug(v.mmsi));
-      } else if (groupFilter === "amnav") {
-        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-      } else if (groupFilter === "citb") {
-        vesselsToShow = vesselsToShow.filter(v => smVesselGroups.citb.includes(v.mmsi));
-      } else if (groupFilter === "foss") {
-        vesselsToShow = vesselsToShow.filter(v => 
-          isSMTug(v.mmsi) && 
-          !smVesselGroups.amnav.includes(v.mmsi) && 
-          !smVesselGroups.citb.includes(v.mmsi)
-        );
-      } else if (groupFilter === "competitors") {
-        vesselsToShow = vesselsToShow.filter(v => !isSMTug(v.mmsi));
-      }
+      const vesselsToShow = filterByGroup(allVessels);
       
       if (selectedVessels.length === 0) {
         setVessels(vesselsToShow);
@@ -701,7 +787,7 @@ function MapPage() {
         }
       }
     }
-  }, [selectedVessels, allVessels, mode, groupFilter]);
+  }, [selectedVessels, allVessels, mode, groupFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -723,23 +809,7 @@ function MapPage() {
   };
 
   const getFilteredVessels = () => {
-    let vessels = allVessels;
-    
-    if (groupFilter === "saltchuk") {
-      vessels = vessels.filter(v => isSMTug(v.mmsi));
-    } else if (groupFilter === "amnav") {
-      vessels = vessels.filter(v => smVesselGroups.amnav.includes(v.mmsi));
-    } else if (groupFilter === "citb") {
-      vessels = vessels.filter(v => smVesselGroups.citb.includes(v.mmsi));
-    } else if (groupFilter === "foss") {
-      vessels = vessels.filter(v => 
-        isSMTug(v.mmsi) && 
-        !smVesselGroups.amnav.includes(v.mmsi) && 
-        !smVesselGroups.citb.includes(v.mmsi)
-      );
-    } else if (groupFilter === "competitors") {
-      vessels = vessels.filter(v => !isSMTug(v.mmsi));
-    }
+    let vessels = filterByGroup(allVessels);
     
     if (dropdownSearch.trim()) {
       const searchTerm = dropdownSearch.toLowerCase().trim();
@@ -750,121 +820,122 @@ function MapPage() {
       });
     }
     
-    return vessels.sort((a, b) => {
+    return [...vessels].sort((a, b) => {
       const nameA = (a.name || "").toLowerCase();
       const nameB = (b.name || "").toLowerCase();
       return nameA.localeCompare(nameB);
     });
   };
 
-  const getColor = (speed) => {
-    if (speed <= 8) return "green";
-    if (speed <= 9) return "yellow";
-    if (speed <= 10) return "orange";
-    return "red";
+  // NEW: compute the dropdown list once per render, and only while it's open
+  const dropdownVessels = dropdownOpen ? getFilteredVessels() : [];
+
+  // ============ CHANGED: two-phase historical load ============
+  // Phase 1: fetch only the 1-day window (full resolution) and show it right away.
+  // Phase 2: quietly fetch the 30-day window in the background; 7/30-day buttons
+  //          use it instantly if it's ready, or wait for it if it isn't.
+  const showHistorical = (data) => {
+    setFullHistoricalData(data);
+    setHistoryRange(1);
+    setSliderIndex(0);
+    setLoadingHistory(false);
+    setMode("historical");
+    // Weather overlays are live-only (current-state services); don't leave them
+    // painting present-day weather under past tracks.
+    setActiveWeatherLayer("none");
   };
 
-  const fetchMultipleHistorical = (mmsiList, rangeDays = 1) => {
-    setLoadingHistory(true);
-    
-    // Create cache key
-    const cacheKey = mmsiList.sort().join(',');
-    
-    // Check if we have cached data for these vessels
-    if (historicalCacheRef.current[cacheKey]) {
-      console.log('Using cached data for', cacheKey);
-      const cachedData = historicalCacheRef.current[cacheKey];
-      setFullHistoricalData(cachedData);
-      
-      // Filter for requested range
-      const cutoff = new Date(Date.now() - (rangeDays * 24 * 60 * 60 * 1000));
-      const slicedData = {};
-      Object.keys(cachedData).forEach(mmsi => {
-        slicedData[mmsi] = cachedData[mmsi].filter(p => new Date(p.created_date) >= cutoff);
-      });
-      
-      setHistoricalData(slicedData);
-      setSliderIndex(0);
-      setHistoryRange(rangeDays);
-      setLoadingHistory(false);
-      setMode("historical");
-      // Weather overlays are live-only (current-state services); don't leave them
-      // painting present-day weather under past tracks.
-      setActiveWeatherLayer("none");
-      
-      setTimeout(() => {
-        if (mapRef.current) {
-          const allPoints = Object.values(slicedData).flat();
-          if (allPoints.length > 1) {
-            const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, normalizeLng(p.longitude)]));  // ← after
-            mapRef.current.fitBounds(bounds, { padding: [30, 30] });
-          }
-        }
-      }, 200);
-      
-      return;
-    }
-    
-    // Fetch data from server
-    const now = new Date().toISOString().slice(0, 19).replace("T", " ");
+  const getHistEntry = (cacheKey) => {
+    if (!historicalCacheRef.current[cacheKey]) historicalCacheRef.current[cacheKey] = {};
+    return historicalCacheRef.current[cacheKey];
+  };
+
+  const isFresh = (ts) => ts && Date.now() - ts < HIST_CACHE_TTL;
+
+  const ensureFullHistory = (cacheKey, ids) => {
+    const entry = getHistEntry(cacheKey);
+    if (entry.full && isFresh(entry.fullTs)) return Promise.resolve(entry.full);
+    if (entry.fullPromise) return entry.fullPromise;
+
     const d = new Date();
     d.setDate(d.getDate() - 30);
     d.setHours(0, 0, 0, 0);
-    const fullStart = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} 00:00:00`;
-    const mmsiString = mmsiList.join(',');
-    
-    fetch(`https://tug.foss.com/historical?mmsi=${mmsiString}&start=${fullStart}&end=${now}`)
-      .then(res => res.json())
-      .then(data => {
-        const allData = data.data || [];
-        
-        // Group by MMSI - NO DOWNSAMPLING
-        const groupedByMMSI = {};
-        allData.forEach(point => {
-          if (point.latitude && point.longitude) {
-            if (!groupedByMMSI[point.mmsi]) {
-              groupedByMMSI[point.mmsi] = [];
-            }
-            groupedByMMSI[point.mmsi].push(point);
-          }
-        });
-        
-        // Cache the data
-        historicalCacheRef.current[cacheKey] = groupedByMMSI;
-        
-        setFullHistoricalData(groupedByMMSI);
-        
-        // Filter for requested range
-        const cutoff = new Date(Date.now() - (rangeDays * 24 * 60 * 60 * 1000));
-        const slicedData = {};
-        Object.keys(groupedByMMSI).forEach(mmsi => {
-          slicedData[mmsi] = groupedByMMSI[mmsi].filter(p => new Date(p.created_date) >= cutoff);
-        });
-        
-        setHistoricalData(slicedData);
-        setSliderIndex(0);
-        setHistoryRange(rangeDays);
-        setLoadingHistory(false);
-        setMode("historical");
-        // Weather overlays are live-only (current-state services); don't leave them
-        // painting present-day weather under past tracks.
-        setActiveWeatherLayer("none");
-        
-        setTimeout(() => {
-          if (mapRef.current) {
-            const allPoints = Object.values(slicedData).flat();
-            if (allPoints.length > 1) {
-              const bounds = L.latLngBounds(allPoints.map(p => [p.latitude, normalizeLng(p.longitude)]));  // ← after
-              mapRef.current.fitBounds(bounds, { padding: [30, 30] });
-            }
-          }
-        }, 200);
+    entry.fullPromise = fetchHistoricalRange(ids, d)
+      .then(full => {
+        entry.full = full;
+        entry.fullTs = Date.now();
+        return full;
+      })
+      .finally(() => { entry.fullPromise = null; });
+    return entry.fullPromise;
+  };
+
+  const fetchMultipleHistorical = (mmsiList) => {
+    const ids = [...mmsiList].sort((a, b) => a - b);   // copy: don't mutate state
+    const cacheKey = ids.join(',');
+    activeHistKeyRef.current = cacheKey;
+    activeHistMmsiRef.current = ids;
+    const entry = getHistEntry(cacheKey);
+
+    if (entry.full && isFresh(entry.fullTs)) {
+      showHistorical(entry.full);
+      return;
+    }
+    if (entry.day1 && isFresh(entry.day1Ts)) {
+      showHistorical(entry.day1);
+      ensureFullHistory(cacheKey, ids).catch(err => console.error("Background 30-day fetch failed:", err));
+      return;
+    }
+
+    setLoadingHistory(true);
+    // Matches the 1-day cutoff used by the range filter (yesterday 00:00 local)
+    const start = new Date();
+    start.setDate(start.getDate() - 1);
+    start.setHours(0, 0, 0, 0);
+
+    fetchHistoricalRange(ids, start)
+      .then(day1 => {
+        entry.day1 = day1;
+        entry.day1Ts = Date.now();
+        if (activeHistKeyRef.current !== cacheKey) return; // user moved on
+        showHistorical(day1);
+        // Kick off the 30-day pull only after 1-day is on screen
+        ensureFullHistory(cacheKey, ids).catch(err => console.error("Background 30-day fetch failed:", err));
       })
       .catch(err => {
         console.error("Error fetching historical data:", err);
         setLoadingHistory(false);
       });
   };
+
+  const handleRangeClick = (days) => {
+    handleClearDateRange();
+    if (days === 1) {
+      setHistoryRange(1);
+      return;
+    }
+    const key = activeHistKeyRef.current;
+    const ids = activeHistMmsiRef.current;
+    if (!key) {
+      setHistoryRange(days);
+      return;
+    }
+    const entry = getHistEntry(key);
+    if (entry.full && fullHistoricalData === entry.full) {
+      setHistoryRange(days);
+      return;
+    }
+    setLoadingHistory(true);
+    ensureFullHistory(key, ids)
+      .then(full => {
+        if (activeHistKeyRef.current !== key) return;
+        setFullHistoricalData(full);
+        setHistoryRange(days);
+      })
+      .catch(err => console.error("Error fetching 30-day history:", err))
+      .finally(() => setLoadingHistory(false));
+  };
+  // ============================================================
 
   // ============ NEW: Helpers for date range picker ============
   const getMinDate = () => {
@@ -907,30 +978,14 @@ function MapPage() {
         return allPoints[0] ? [allPoints[0].latitude, normalizeLng(allPoints[0].longitude)] : [36.5, -122];
       })();
 
-  const rotatedIcon = (angle, vessel) => L.divIcon({
-    className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: ${getVesselColor(vessel)};">➤</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
+  // CHANGED: all arrow icons come from the shared cache
+  const rotatedIcon = (angle, vessel) => arrowIcon(angle, getVesselColor(vessel));
 
   // ============ NEW: Gray icon for nearby vessels ============
-  const nearbyIcon = (angle) => L.divIcon({
-    className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: #808080;">➤</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
+  const nearbyIcon = (angle) => arrowIcon(angle, "#808080");
   // ===========================================================
 
-  const historicalEndIcon = (angle, vessel) => L.divIcon({
-    className: "ship-icon",
-    html: `<div style="font-size: 20px; transform: rotate(${angle - 90}deg); transform-origin: center center; color: ${vessel ? getVesselColor(vessel) : '#5af3f4'};">➤</div>`,
-    iconSize: [20, 20],
-    iconAnchor: [10, 10]
-  });
-
-  const startIcon = L.divIcon({ className: "start-icon", html: "🟢", iconSize: [20, 20], iconAnchor: [10, 10] });
+  const historicalEndIcon = (angle, vessel) => arrowIcon(angle, vessel ? getVesselColor(vessel) : '#5af3f4');
 
   const maxSliderValue = Object.keys(historicalData).length > 0 
     ? Math.max(...Object.values(historicalData).map(arr => arr.length)) - 1
@@ -957,7 +1012,7 @@ function MapPage() {
       minute: "2-digit",
       second: "2-digit",
     });
-  }, [sliderIndex, historicalData]);
+  }, [sliderIndex, historicalData]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ============ NEW: Pre-fix antimeridian ONCE per data load ============
   // Both the canvas overlay and the tooltip hitboxes read from this, so the
@@ -972,7 +1027,7 @@ function MapPage() {
   // ======================================================================
 
   // Use canvas overlay for gradient lines in historical mode
-  useCanvasOverlay(mapRef.current, fixedPaths, sliderIndex, getColor);
+  useCanvasOverlay(mapRef.current, fixedPaths, sliderIndex);
 
   return (
     <div>
@@ -1122,19 +1177,25 @@ function MapPage() {
         </div>
       )}
 
-      {loading && (
+      {/* CHANGED: small non-blocking pill instead of a full-screen wait,
+          and only when there's nothing to show yet */}
+      {loading && allVessels.length === 0 && (
         <div style={{
           position: "absolute",
-          top: "50%",
+          top: "140px",
           left: "50%",
-          transform: "translate(-50%, -50%)",
-          background: "#fff",
-          padding: "20px",
-          borderRadius: "8px",
+          transform: "translateX(-50%)",
+          background: "rgba(255,255,255,0.95)",
+          padding: "6px 14px",
+          borderRadius: "16px",
           boxShadow: "0 2px 6px rgba(0,0,0,0.2)",
-          zIndex: 1000
+          zIndex: 1000,
+          fontSize: "13px",
+          fontWeight: "600",
+          color: "#12506b",
+          pointerEvents: "none"
         }}>
-          <h3>Loading...</h3>
+          Loading vessels…
         </div>
       )}
 
@@ -1146,6 +1207,7 @@ function MapPage() {
                 {Object.keys(historicalData).length} Vessel{Object.keys(historicalData).length !== 1 ? 's' : ''} - Historical Activity
               </h3>
               <button onClick={() => {
+                activeHistKeyRef.current = null;
                 setMode("live");
                 setSelected(null);
                 setHistoricalData({});
@@ -1257,15 +1319,15 @@ function MapPage() {
                     >
                       <input
                         type="checkbox"
-                        checked={selectedVessels.length === getFilteredVessels().length && getFilteredVessels().length > 0}
+                        checked={selectedVessels.length === dropdownVessels.length && dropdownVessels.length > 0}
                         onChange={() => {}}
                         style={{ marginRight: "8px" }}
                       />
-                      Select All ({getFilteredVessels().length} vessels)
+                      Select All ({dropdownVessels.length} vessels)
                     </div>
                     
-                    {getFilteredVessels().length > 0 ? (
-                      getFilteredVessels().map(vessel => (
+                    {dropdownVessels.length > 0 ? (
+                      dropdownVessels.map(vessel => (
                         <div
                           key={vessel.mmsi}
                           onClick={() => handleVesselSelect(vessel.mmsi)}
@@ -1311,7 +1373,7 @@ function MapPage() {
                     🔁 Show All
                   </button>
                   <button 
-                    onClick={() => fetchMultipleHistorical(selectedVessels, 1)}
+                    onClick={() => fetchMultipleHistorical(selectedVessels)}
                     style={{
                       padding: "8px 16px",
                       border: "1px solid #4CA61C",
@@ -1498,10 +1560,7 @@ function MapPage() {
                     borderRadius: "4px",
                     cursor: "pointer"
                   }}
-                  onClick={() => {
-                    handleClearDateRange();
-                    setHistoryRange(days);
-                  }}
+                  onClick={() => handleRangeClick(days)}
                 >
                   {days === 1 ? "1 Day" : days === 7 ? "7 Days" : "30 Days"}
                 </button>
@@ -1588,7 +1647,9 @@ function MapPage() {
         )}
       </div>
 
-      <MapContainer center={currentCenter} zoom={6} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
+      {/* CHANGED: preferCanvas draws polylines/hulls on one canvas instead of
+          thousands of SVG elements (big win for historical tooltip hitboxes) */}
+      <MapContainer center={currentCenter} zoom={6} preferCanvas={true} style={{ height: "85vh", position: "relative" }} whenReady={(map) => { mapRef.current = map.target }} zoomControl={false}>
         <ZoomControl position="topright" />
         <ZoomTracker onZoom={setZoom} />
         <TileLayer
@@ -1689,19 +1750,19 @@ function MapPage() {
           );
           return showHull ? (
             <Polygon
-              key={`hull-${i}`}
+              key={`hull-${v.mmsi}`}
               positions={shipPolygonLatLngs(lat, lon, hdgOrCourse(v.heading, v.course), dims)}
               pathOptions={{ color, fillColor: color, fillOpacity: 0.7, weight: 1.5 }}
-              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi], 1) }}
+              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi]) }}
             >
               {tip}
             </Polygon>
           ) : (
             <Marker
-              key={`arrow-${i}`}
+              key={`arrow-${v.mmsi}`}
               position={[lat, lon]}
               icon={rotatedIcon(v.heading || 0, v)}
-              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi], 1) }}
+              eventHandlers={{ click: () => fetchMultipleHistorical([v.mmsi]) }}
             >
               {tip}
             </Marker>
@@ -1711,7 +1772,7 @@ function MapPage() {
         {/* ============ NEW: Nearby vessels ============ */}
         {mode === "live" && nearbyVessels.map((v, i) => (
           <Marker
-            key={`nearby-${i}`}
+            key={`nearby-${v.mmsi}-${i}`}
             position={[v.latitude, v.longitude]}
             icon={nearbyIcon(v.heading || 0)}
           >

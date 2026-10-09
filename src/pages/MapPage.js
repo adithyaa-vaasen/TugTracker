@@ -566,9 +566,9 @@ function MapPage() {
   };
 
   // NEW: O(1) lookups instead of scanning arrays for every vessel on every render
-  const smTugsSet = useMemo(() => new Set(smTugsMMSI), []);           // eslint-disable-line react-hooks/exhaustive-deps
-  const citbSet = useMemo(() => new Set(smVesselGroups.citb), []);    // eslint-disable-line react-hooks/exhaustive-deps
-  const amnavSet = useMemo(() => new Set(smVesselGroups.amnav), []);  // eslint-disable-line react-hooks/exhaustive-deps
+  const smTugsSet = useMemo(() => new Set(smTugsMMSI), []);
+  const citbSet = useMemo(() => new Set(smVesselGroups.citb), []);
+  const amnavSet = useMemo(() => new Set(smVesselGroups.amnav), []);
   
   // Custom vessel colors - Add vessels here with their MMSI and desired color
   const customVesselColors = {
@@ -590,7 +590,7 @@ function MapPage() {
     fetchLiveData();
     const interval = setInterval(fetchLiveData, 4 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (dropdownOpen && searchInputRef.current) {
@@ -638,7 +638,7 @@ function MapPage() {
     } else if (mode === "live") {
       setNearbyVessels([]);
     }
-  }, [showNearbyVessels, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [showNearbyVessels, mode]);
   // ===================================================
 
   // CHANGED: only stores the raw data. The filter effect below derives `vessels`
@@ -680,7 +680,7 @@ function MapPage() {
       }, playSpeed);
       return () => clearInterval(timer);
     }
-  }, [isPlaying, mode, historicalData, playSpeed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isPlaying, mode, historicalData, playSpeed]);
 
   useEffect(() => {
     if (mode === "historical" && Object.keys(fullHistoricalData).length > 0) {
@@ -787,7 +787,7 @@ function MapPage() {
         }
       }
     }
-  }, [selectedVessels, allVessels, mode, groupFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedVessels, allVessels, mode, groupFilter]);
 
   const handleVesselSelect = (mmsi) => {
     setSelectedVessels(prev => {
@@ -1012,7 +1012,7 @@ function MapPage() {
       minute: "2-digit",
       second: "2-digit",
     });
-  }, [sliderIndex, historicalData]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sliderIndex, historicalData]);
 
   // ============ NEW: Pre-fix antimeridian ONCE per data load ============
   // Both the canvas overlay and the tooltip hitboxes read from this, so the
